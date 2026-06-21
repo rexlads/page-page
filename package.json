@@ -1,0 +1,32 @@
+{
+  "name": "page-page",
+  "version": "1.0.0",
+  "description": "Self-hostable biolink platform + link shortener with an admin panel, per-button geo cloaking, and full export/import (files + database).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "export": "node scripts/export.js",
+    "import": "node scripts/import.js"
+  },
+  "keywords": [
+    "biolink",
+    "linktree",
+    "link-shortener",
+    "geo-cloaking",
+    "self-hosted"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "geoip-lite": "^1.4.10",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.0",
+    "nanoid": "^3.3.7"
+  }
+}
