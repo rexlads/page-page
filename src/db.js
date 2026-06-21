@@ -87,7 +87,16 @@ function seedAdmin() {
   console.log(`[db] Seeded admin user "${config.ADMIN_USERNAME}".`);
 }
 
+// Add a column to an existing table only if it is missing (lightweight migration).
+function ensureColumn(table, col, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+
 migrate();
+// --- incremental migrations ---
+ensureColumn('buttons', 'start_at', `start_at TEXT NOT NULL DEFAULT ''`); // schedule visible-from
+ensureColumn('buttons', 'end_at', `end_at TEXT NOT NULL DEFAULT ''`); // schedule visible-until
 seedAdmin();
 
 // --- Settings helpers -------------------------------------------------------

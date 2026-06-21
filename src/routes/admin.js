@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const multer = require('multer');
+const QRCode = require('qrcode');
 const { nanoid } = require('nanoid');
 const config = require('../config');
 const { db, getSetting, setSetting } = require('../db');
@@ -187,6 +188,8 @@ function sanitizeButton(body, page_id) {
       .map((c) => c.trim().toUpperCase())
       .filter(Boolean)
       .join(','),
+    start_at: body.start_at ? String(body.start_at) : '',
+    end_at: body.end_at ? String(body.end_at) : '',
   };
 }
 
@@ -200,8 +203,8 @@ router.post('/pages/:id/buttons', (req, res) => {
 
   const info = db
     .prepare(
-      `INSERT INTO buttons (page_id, label, url, icon, bg_color, text_color, style, sort_order, enabled, cloak_mode, cloak_countries)
-       VALUES (@page_id, @label, @url, @icon, @bg_color, @text_color, @style, @sort_order, @enabled, @cloak_mode, @cloak_countries)`
+      `INSERT INTO buttons (page_id, label, url, icon, bg_color, text_color, style, sort_order, enabled, cloak_mode, cloak_countries, start_at, end_at)
+       VALUES (@page_id, @label, @url, @icon, @bg_color, @text_color, @style, @sort_order, @enabled, @cloak_mode, @cloak_countries, @start_at, @end_at)`
     )
     .run(b);
   res.json({ id: info.lastInsertRowid });
@@ -215,7 +218,8 @@ router.put('/buttons/:id', (req, res) => {
   db.prepare(
     `UPDATE buttons SET
        label=@label, url=@url, icon=@icon, bg_color=@bg_color, text_color=@text_color,
-       style=@style, enabled=@enabled, cloak_mode=@cloak_mode, cloak_countries=@cloak_countries
+       style=@style, enabled=@enabled, cloak_mode=@cloak_mode, cloak_countries=@cloak_countries,
+       start_at=@start_at, end_at=@end_at
      WHERE id=@id`
   ).run(b);
   res.json({ ok: true });
@@ -305,6 +309,73 @@ router.get('/stats', (req, res) => {
     button_clicks: n(`SELECT COALESCE(SUM(clicks),0) AS n FROM buttons`),
     link_clicks: n(`SELECT COALESCE(SUM(clicks),0) AS n FROM short_links`),
   });
+});
+
+// ===========================================================================
+// ANALYTICS (per-country + over time, from the events log)
+// ===========================================================================
+router.get('/analytics', (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days || '30', 10) || 30, 1), 365);
+  const since = `-${days} days`;
+
+  const byCountry = db
+    .prepare(
+      `SELECT country, COUNT(*) AS n FROM events
+       WHERE type IN ('button_click','short_click','page_view')
+         AND created_at >= datetime('now', ?)
+       GROUP BY country ORDER BY n DESC LIMIT 20`
+    )
+    .all(since);
+
+  const byType = db
+    .prepare(
+      `SELECT type, COUNT(*) AS n FROM events
+       WHERE created_at >= datetime('now', ?) GROUP BY type`
+    )
+    .all(since);
+
+  const daily = db
+    .prepare(
+      `SELECT date(created_at) AS day,
+              SUM(type='page_view')   AS views,
+              SUM(type IN ('button_click','short_click')) AS clicks
+       FROM events WHERE created_at >= datetime('now', ?)
+       GROUP BY day ORDER BY day`
+    )
+    .all(since);
+
+  const blocked = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM events
+       WHERE type='short_blocked' AND created_at >= datetime('now', ?)`
+    )
+    .get(since).n;
+
+  const topPages = db.prepare(`SELECT slug, title, views FROM pages ORDER BY views DESC LIMIT 5`).all();
+  const topLinks = db.prepare(`SELECT code, title, clicks FROM short_links ORDER BY clicks DESC LIMIT 5`).all();
+  const topButtons = db
+    .prepare(`SELECT label, clicks FROM buttons ORDER BY clicks DESC LIMIT 5`)
+    .all();
+
+  res.json({ days, byCountry, byType, daily, blocked, topPages, topLinks, topButtons });
+});
+
+// ===========================================================================
+// QR CODE (PNG) for any of your links
+// ===========================================================================
+router.get('/qr', async (req, res) => {
+  const data = req.query.data;
+  if (!data) return res.status(400).json({ error: 'data kosong' });
+  try {
+    const png = await QRCode.toBuffer(String(data), {
+      width: 600,
+      margin: 2,
+      color: { dark: '#0b1120', light: '#ffffff' },
+    });
+    res.type('png').setHeader('Cache-Control', 'no-store').send(png);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // ===========================================================================

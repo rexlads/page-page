@@ -21,6 +21,16 @@ Konsepnya mirip Linktree / bio.link / jagalink, tapi sepenuhnya milikmu.
 - **✂️ Link shortener** — persingkat URL apa pun (`/promo`), dengan kode kustom
   atau acak, statistik klik, dan cloaking juga (plus URL fallback untuk visitor
   yang diblokir).
+- **⏰ Penjadwalan tombol** — atur kapan tombol mulai & berhenti tampil (mis. untuk
+  promo terbatas waktu).
+- **🎨 Tema cantik** — preset siap pakai (midnight, aurora, sunset, candy, forest,
+  mono, light), pilihan font (Inter/Poppins/Montserrat/Space Grotesk), warna aksen,
+  efek kaca (glass) & animasi masuk tombol.
+- **📱 Live preview** — pratinjau halaman publik dalam bingkai ponsel langsung di
+  editor tombol.
+- **🌍 Analytics per-negara** — page views, klik, jumlah yang diblokir cloaking,
+  grafik harian, rincian per negara, dan top pages/links/tombol.
+- **🔳 QR Code** — buat & unduh QR untuk setiap biolink page maupun short link.
 - **💾 Export / Import total** — unduh seluruh data (database SQLite + semua file
   upload) sebagai satu `.zip`, dan restore di server mana pun. Lewat panel maupun
   terminal.
@@ -98,6 +108,28 @@ Isi kolom negara dengan **kode ISO 2 huruf**, dipisah koma. Contoh: `ID, MY, SG`
 Cloudflare), atau melakukan lookup GeoIP offline dari IP pengunjung. Pastikan
 `trust proxy` aktif (sudah default) agar IP asli terbaca di belakang reverse proxy.
 
+### 3b. ⏰ Penjadwalan tombol
+
+Di editor tombol ada bagian **Jadwal tampil**:
+
+- **Mulai tampil** — tombol baru muncul setelah waktu ini.
+- **Berhenti tampil** — tombol otomatis hilang setelah waktu ini.
+
+Kosongkan salah satu/keduanya untuk tanpa batas. Cocok untuk promo/event terbatas.
+Sama seperti cloaking, link langsungnya pun ikut nonaktif di luar jadwal.
+
+### 3c. 🎨 Tema & tampilan
+
+Di **Setelan** page: pilih **preset tema** (klik swatch), atau atur sendiri warna
+background (mendukung CSS gradient), warna teks, **warna aksen**, **font**, serta
+nyalakan/matikan **efek kaca** dan **animasi masuk** tombol. Gunakan **Live Preview**
+(bingkai ponsel di editor tombol) untuk melihat hasilnya secara langsung.
+
+### 3d. 🔳 QR Code
+
+Klik tombol **QR** pada page atau short link untuk menampilkan & **mengunduh** QR
+code (PNG) — siap dicetak atau dibagikan.
+
 ### 4. ✂️ Link Shortener
 
 1. Menu **Link Shortener → + Short Link**.
@@ -137,7 +169,14 @@ node scripts/import.js backups/page-page-backup-2026-01-01.zip
 backup.zip` — selesai. Semua page, tombol, short link, statistik, dan file upload
 ikut berpindah. Tidak butuh GitHub atau layanan eksternal apa pun.
 
-### 6. Ganti password / judul situs
+### 6. 🌍 Analytics
+
+Menu **Analytics**: pilih rentang waktu (7/30/90/365 hari) untuk melihat page views,
+klik tombol, klik short link, jumlah kunjungan yang **diblokir cloaking**, grafik
+aktivitas harian, **rincian per negara**, serta daftar top pages/short links/tombol.
+Data berasal dari log event internal (ikut ter-backup saat export).
+
+### 7. Ganti password / judul situs
 
 Menu **Pengaturan** → ubah judul situs, atau ganti password admin (butuh password
 lama).

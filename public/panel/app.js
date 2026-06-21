@@ -44,7 +44,34 @@ $('#modal').addEventListener('click', (e) => {
   if (e.target.id === 'modal') closeModal();
 });
 
+function qrModal(url) {
+  const src = '/api/qr?data=' + encodeURIComponent(url);
+  openModal(`
+    <h3>QR Code</h3>
+    <p class="muted" style="word-break:break-all">${esc(url)}</p>
+    <div style="text-align:center;margin:14px 0">
+      <img src="${src}" alt="QR" style="width:240px;height:240px;border-radius:14px;background:#fff;padding:8px">
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeModal()">Tutup</button>
+      <a class="btn primary" href="${src}" download="qr.png">Download PNG</a>
+    </div>`);
+}
+window.qrModal = qrModal;
+
 let BASE_URL = location.origin;
+
+// Theme presets mirrored from the server (src/routes/public.js).
+const PRESETS = {
+  midnight: { bg: 'linear-gradient(160deg,#0f172a,#1e293b)', text_color: '#f8fafc', accent: '#6366f1' },
+  aurora: { bg: 'linear-gradient(160deg,#0f2027,#203a43,#2c5364)', text_color: '#eafff7', accent: '#2dd4bf' },
+  sunset: { bg: 'linear-gradient(160deg,#42275a,#734b6d)', text_color: '#fff5f7', accent: '#fb7185' },
+  candy: { bg: 'linear-gradient(160deg,#ff9a9e,#fecfef)', text_color: '#3a2330', accent: '#d946ef' },
+  forest: { bg: 'linear-gradient(160deg,#134e5e,#71b280)', text_color: '#f0fff4', accent: '#34d399' },
+  mono: { bg: '#0b0b0c', text_color: '#fafafa', accent: '#a3a3a3' },
+  light: { bg: 'linear-gradient(160deg,#f8fafc,#e2e8f0)', text_color: '#0f172a', accent: '#6366f1' },
+};
+const FONTS = ['system', 'Inter', 'Poppins', 'Montserrat', 'Space Grotesk'];
 
 // --- auth -------------------------------------------------------------------
 function showLogin() {
@@ -138,6 +165,7 @@ views.pages = async () => {
         <a class="btn sm ghost" href="/${esc(p.slug)}" target="_blank">Lihat</a>
         <button class="btn sm" data-edit="${p.id}">Edit Tombol</button>
         <button class="btn sm ghost" data-settings="${p.id}">Setelan</button>
+        <button class="btn sm ghost" data-qr="${esc(p.slug)}">QR</button>
         <button class="btn sm danger" data-del="${p.id}">Hapus</button>
       </div>
     </div>`
@@ -146,6 +174,7 @@ views.pages = async () => {
 
   $$('[data-edit]').forEach((b) => b.addEventListener('click', () => editButtons(+b.dataset.edit)));
   $$('[data-settings]').forEach((b) => b.addEventListener('click', () => pageModal(+b.dataset.settings)));
+  $$('[data-qr]').forEach((b) => b.addEventListener('click', () => qrModal(`${BASE_URL}/${b.dataset.qr}`)));
   $$('[data-del]').forEach((b) =>
     b.addEventListener('click', async () => {
       if (!confirm('Hapus page ini beserta semua tombolnya?')) return;
@@ -178,11 +207,32 @@ async function pageModal(id) {
       <input id="f_avatar" value="${esc(p.avatar)}" placeholder="/uploads/... atau https://...">
       <input type="file" id="f_avatarFile" accept="image/*" style="width:auto">
     </div>
+    <label>Tema (preset)</label>
+    <div class="swatches" id="swatches">
+      ${Object.entries(PRESETS)
+        .map(
+          ([k, v]) =>
+            `<button type="button" class="swatch" data-preset="${k}" title="${k}" style="background:${v.bg}"><span>${k}</span></button>`
+        )
+        .join('')}
+    </div>
     <div class="grid2">
       <div><label>Warna Background (CSS)</label>
-        <input id="f_bg" value="${esc(theme.bg || 'linear-gradient(160deg,#0f172a,#1e293b)')}"></div>
+        <input id="f_bg" value="${esc(theme.bg || PRESETS.midnight.bg)}"></div>
       <div><label>Warna Teks</label>
         <input id="f_textcolor" value="${esc(theme.text_color || '#f8fafc')}"></div>
+    </div>
+    <div class="grid2">
+      <div><label>Warna Aksen</label>
+        <div class="color-row"><input type="color" id="f_accent" value="${esc(theme.accent || '#6366f1')}"><input id="f_accent_t" value="${esc(theme.accent || '#6366f1')}"></div>
+      </div>
+      <div><label>Font</label>
+        <select id="f_font">${FONTS.map((f) => `<option ${(theme.font || 'system') === f ? 'selected' : ''}>${f}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="grid2">
+      <label style="margin:8px 0"><input type="checkbox" id="f_glass" ${theme.glass !== false ? 'checked' : ''} style="width:auto"> Efek kaca (glass) pada tombol</label>
+      <label style="margin:8px 0"><input type="checkbox" id="f_animate" ${theme.animate !== false ? 'checked' : ''} style="width:auto"> Animasi masuk tombol</label>
     </div>
     <label><input type="checkbox" id="f_pub" ${p.published ? 'checked' : ''} style="width:auto"> Published (aktif untuk publik)</label>
     <div class="modal-actions">
@@ -191,6 +241,24 @@ async function pageModal(id) {
     </div>`);
 
   $('#f_slug').addEventListener('input', (e) => ($('#slugPrev').textContent = e.target.value || 'namaku'));
+
+  // theme preset swatches
+  $$('#swatches .swatch').forEach((sw) =>
+    sw.addEventListener('click', () => {
+      const t = PRESETS[sw.dataset.preset];
+      $('#f_bg').value = t.bg;
+      $('#f_textcolor').value = t.text_color;
+      $('#f_accent').value = t.accent;
+      $('#f_accent_t').value = t.accent;
+      $('#f_bg').dataset.preset = sw.dataset.preset;
+      $$('#swatches .swatch').forEach((x) => x.classList.toggle('active', x === sw));
+    })
+  );
+  $('#f_accent').addEventListener('input', () => ($('#f_accent_t').value = $('#f_accent').value));
+  $('#f_accent_t').addEventListener('input', () => {
+    if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test($('#f_accent_t').value)) $('#f_accent').value = $('#f_accent_t').value;
+  });
+
   $('#f_avatarFile').addEventListener('change', async (e) => {
     const url = await uploadFile(e.target.files[0]);
     if (url) {
@@ -206,7 +274,15 @@ async function pageModal(id) {
       description: $('#f_desc').value,
       avatar: $('#f_avatar').value.trim(),
       published: $('#f_pub').checked,
-      theme: { bg: $('#f_bg').value, text_color: $('#f_textcolor').value, accent: theme.accent || '#6366f1' },
+      theme: {
+        preset: $('#f_bg').dataset.preset || theme.preset || '',
+        bg: $('#f_bg').value,
+        text_color: $('#f_textcolor').value,
+        accent: $('#f_accent_t').value || $('#f_accent').value,
+        font: $('#f_font').value,
+        glass: $('#f_glass').checked,
+        animate: $('#f_animate').checked,
+      },
     };
     try {
       if (id) await api('/pages/' + id, { method: 'PUT', body: payload });
@@ -247,9 +323,20 @@ async function editButtons(pageId) {
         <button class="btn primary" id="addBtn">+ Tambah Tombol</button>
       </div>
     </div>
-    <p class="sub">Atur tombol, tampilan, dan <b>cloaking per negara</b>. Seret untuk mengubah urutan.</p>
-    <div id="btnList"></div>`;
+    <p class="sub">Atur tombol, tampilan, <b>cloaking per negara</b>, dan <b>jadwal</b>. Seret untuk mengubah urutan.</p>
+    <div class="editor-layout">
+      <div id="btnList" class="editor-col"></div>
+      <div class="preview-col">
+        <div class="phone"><iframe id="previewFrame" title="preview" src="/${encodeURIComponent(page.slug)}"></iframe></div>
+        <button class="btn ghost sm" id="refreshPrev">🔄 Refresh preview</button>
+        <div class="hint" style="text-align:center">Preview live halaman publikmu</div>
+      </div>
+    </div>`;
   $('#back').addEventListener('click', () => navigate('pages'));
+  $('#refreshPrev').addEventListener('click', () => {
+    const f = $('#previewFrame');
+    f.src = f.src;
+  });
   $('#addBtn').addEventListener('click', async () => {
     await api(`/pages/${pageId}/buttons`, { method: 'POST', body: { label: 'Tombol baru', url: 'https://' } });
     editButtons(pageId);
@@ -319,6 +406,12 @@ function buttonEditorHtml(b) {
     </div>
     <div class="hint">Pakai kode negara ISO (2 huruf), pisahkan dengan koma. Contoh: <b>ID, MY, SG</b></div>
 
+    <label>⏰ Jadwal tampil (opsional)</label>
+    <div class="grid2">
+      <div><span class="hint">Mulai tampil</span><input type="datetime-local" data-f="start_at" value="${esc(b.start_at || '')}"></div>
+      <div><span class="hint">Berhenti tampil</span><input type="datetime-local" data-f="end_at" value="${esc(b.end_at || '')}"></div>
+    </div>
+
     <div class="modal-actions" style="margin-top:14px">
       <label style="margin:0"><input type="checkbox" data-f="enabled" ${b.enabled ? 'checked' : ''} style="width:auto"> Aktif</label>
       <button class="btn danger sm" data-delbtn="${b.id}">Hapus</button>
@@ -351,6 +444,8 @@ function bindButtonEditor(b, pageId) {
       enabled: g('enabled').checked,
       cloak_mode: g('cloak_mode').value,
       cloak_countries: g('cloak_countries').value,
+      start_at: g('start_at').value,
+      end_at: g('end_at').value,
     };
     try {
       await api('/buttons/' + b.id, { method: 'PUT', body: payload });
@@ -430,6 +525,7 @@ views.links = async () => {
       </div>
       <div class="actions">
         <button class="btn sm ghost" data-copy="${esc(l.code)}">Salin</button>
+        <button class="btn sm ghost" data-qr="${esc(l.code)}">QR</button>
         <button class="btn sm" data-edit="${l.id}">Edit</button>
         <button class="btn sm danger" data-del="${l.id}">Hapus</button>
       </div>
@@ -443,6 +539,7 @@ views.links = async () => {
       toast('Tersalin ke clipboard');
     })
   );
+  $$('[data-qr]').forEach((b) => b.addEventListener('click', () => qrModal(`${BASE_URL}/${b.dataset.qr}`)));
   $$('[data-edit]').forEach((b) => b.addEventListener('click', () => linkModal(+b.dataset.edit, links)));
   $$('[data-del]').forEach((b) =>
     b.addEventListener('click', async () => {
@@ -504,6 +601,99 @@ function linkModal(id, links) {
     }
   });
 }
+
+// ===========================================================================
+// ANALYTICS
+// ===========================================================================
+const FLAGS = {}; // optional emoji flags; fall back to code
+function flag(cc) {
+  if (!cc || cc.length !== 2 || cc === 'XX') return '🏳️';
+  return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+views.analytics = async () => {
+  const v = $('#view');
+  v.innerHTML = `
+    <div class="row-between"><h2>Analytics</h2>
+      <select id="range" style="width:auto">
+        <option value="7">7 hari</option>
+        <option value="30" selected>30 hari</option>
+        <option value="90">90 hari</option>
+        <option value="365">1 tahun</option>
+      </select>
+    </div>
+    <p class="sub">Statistik kunjungan & klik, termasuk rincian per negara.</p>
+    <div id="aBody"><p class="muted">Memuat...</p></div>`;
+
+  const load = async () => {
+    const days = $('#range').value;
+    const a = await api('/analytics?days=' + days);
+    const types = Object.fromEntries(a.byType.map((t) => [t.type, t.n]));
+    const maxC = Math.max(1, ...a.byCountry.map((c) => c.n));
+    const maxD = Math.max(1, ...a.daily.map((d) => Math.max(d.views, d.clicks)));
+
+    const countryRows =
+      a.byCountry
+        .map(
+          (c) => `
+        <div class="bar-row">
+          <div class="bar-label">${flag(c.country)} ${esc(c.country)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(c.n / maxC) * 100}%"></div></div>
+          <div class="bar-val">${c.n}</div>
+        </div>`
+        )
+        .join('') || '<p class="muted">Belum ada data.</p>';
+
+    const dailyBars =
+      a.daily
+        .map(
+          (d) => `
+        <div class="spark" title="${d.day}: ${d.views} views, ${d.clicks} klik">
+          <div class="spark-bar v" style="height:${(d.views / maxD) * 100}%"></div>
+          <div class="spark-bar c" style="height:${(d.clicks / maxD) * 100}%"></div>
+        </div>`
+        )
+        .join('') || '<p class="muted">Belum ada data.</p>';
+
+    const topList = (arr, key, label) =>
+      arr.length
+        ? arr.map((x) => `<div class="mini"><span>${esc(x[label] || x[key])}</span><b>${x.clicks ?? x.views}</b></div>`).join('')
+        : '<p class="muted">—</p>';
+
+    $('#aBody').innerHTML = `
+      <div class="cards">
+        <div class="card stat"><div class="num">${types.page_view || 0}</div><div class="lbl">Page Views</div></div>
+        <div class="card stat"><div class="num">${types.button_click || 0}</div><div class="lbl">Klik Tombol</div></div>
+        <div class="card stat"><div class="num">${types.short_click || 0}</div><div class="lbl">Klik Short Link</div></div>
+        <div class="card stat"><div class="num">${a.blocked || 0}</div><div class="lbl">Diblokir (cloaking)</div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Aktivitas harian</h3>
+        <div class="legend"><span class="dot v"></span> views <span class="dot c"></span> klik</div>
+        <div class="sparkline">${dailyBars}</div>
+      </div>
+
+      <div class="grid2" style="margin-top:16px">
+        <div class="card">
+          <h3>🌍 Per Negara</h3>
+          <div class="bars">${countryRows}</div>
+        </div>
+        <div>
+          <div class="card"><h3>Top Pages</h3>${topList(a.topPages, 'slug', 'title')}</div>
+          <div class="card" style="margin-top:12px"><h3>Top Short Links</h3>${topList(a.topLinks, 'code', 'title')}</div>
+          <div class="card" style="margin-top:12px"><h3>Top Tombol</h3>${topList(a.topButtons, 'label', 'label')}</div>
+        </div>
+      </div>`;
+  };
+
+  $('#range').addEventListener('change', load);
+  try {
+    await load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+};
 
 // ===========================================================================
 // BACKUP (export / import)

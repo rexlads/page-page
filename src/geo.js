@@ -41,4 +41,18 @@ function isVisible(mode, countriesCsv, country) {
   return true;
 }
 
-module.exports = { clientIp, lookupCountry, isVisible };
+// Time-based visibility. Empty bounds mean "no limit". Values are datetime
+// strings from the panel's <input type="datetime-local"> fields.
+function isScheduledNow(startAt, endAt, now = new Date()) {
+  if (startAt) {
+    const s = new Date(startAt);
+    if (!isNaN(s) && s > now) return false; // not started yet
+  }
+  if (endAt) {
+    const e = new Date(endAt);
+    if (!isNaN(e) && e < now) return false; // already ended
+  }
+  return true;
+}
+
+module.exports = { clientIp, lookupCountry, isVisible, isScheduledNow };
