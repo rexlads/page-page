@@ -280,6 +280,9 @@ terpisah yang harus diurus saat pindah host.
 
 ## 🌐 Deploy produksi (ringkas)
 
+> 📘 Panduan lengkap langkah-demi-langkah (VPS + Caddy/Nginx, Cloudflare, PaaS,
+> subdomain, backup cron, troubleshooting) ada di **[DEPLOY.md](DEPLOY.md)**.
+
 1. Set `BASE_URL` ke domainmu dan `JWT_SECRET` ke string acak panjang.
 2. Jalankan dengan process manager, mis. **pm2**: `pm2 start server.js --name page-page`.
 3. Taruh di belakang reverse proxy (Nginx/Caddy) dengan HTTPS. Teruskan header
