@@ -889,6 +889,69 @@ views.analytics = async () => {
 };
 
 // ===========================================================================
+// CLOAK TESTER — simulate a visitor, see each item visible/hidden + reason
+// ===========================================================================
+views.cloaktest = async () => {
+  const v = $('#view');
+  v.innerHTML = `
+    <h2>🧪 Cek Cloaking</h2>
+    <p class="sub">Simulasikan pengunjung untuk memastikan aturan cloaking (mis. referrer TikTok) sudah benar.</p>
+    <div class="card" style="max-width:680px">
+      <div style="margin-bottom:10px">
+        <button class="btn sm" id="presetTiktok">📱 Preset: dari TikTok (ID, Android, ada ttclid)</button>
+        <button class="btn sm ghost" id="presetDesktop">💻 Preset: desktop acak (tanpa referrer)</button>
+      </div>
+      <div class="grid2">
+        <div><label>Referrer (sumber)</label><input id="t_ref" placeholder="https://www.tiktok.com/"></div>
+        <div><label>Negara (ISO)</label><input id="t_country" value="ID"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Perangkat</label><select id="t_device"><option value="mobile">mobile</option><option value="desktop">desktop</option></select></div>
+        <div><label>Sistem operasi</label><select id="t_os"><option value="">(kosong)</option><option value="android">android</option><option value="ios">ios</option><option value="windows">windows</option><option value="mac">mac</option><option value="linux">linux</option></select></div>
+      </div>
+      <div class="grid2">
+        <div><label>Bahasa</label><input id="t_lang" value="id"></div>
+        <div><label>&nbsp;</label>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:8px">
+            <label style="margin:0"><input type="checkbox" id="t_click" style="width:auto"> ada click-id iklan</label>
+            <label style="margin:0"><input type="checkbox" id="t_bot" style="width:auto"> bot</label>
+            <label style="margin:0"><input type="checkbox" id="t_dc" style="width:auto"> VPN/datacenter</label>
+          </div>
+        </div>
+      </div>
+      <button class="btn primary" id="runTest" style="margin-top:14px">Jalankan Tes</button>
+    </div>
+    <div id="testResult" style="margin-top:16px"></div>`;
+
+  const setPreset = (p) => {
+    $('#t_ref').value = p.ref; $('#t_country').value = p.country; $('#t_device').value = p.device;
+    $('#t_os').value = p.os; $('#t_lang').value = p.lang;
+    $('#t_click').checked = p.click; $('#t_bot').checked = false; $('#t_dc').checked = false;
+  };
+  $('#presetTiktok').addEventListener('click', () => setPreset({ ref: 'https://www.tiktok.com/', country: 'ID', device: 'mobile', os: 'android', lang: 'id', click: true }));
+  $('#presetDesktop').addEventListener('click', () => setPreset({ ref: '', country: 'US', device: 'desktop', os: 'windows', lang: 'en', click: false }));
+
+  const run = async () => {
+    const body = {
+      referrer: $('#t_ref').value, country: $('#t_country').value, device: $('#t_device').value,
+      os: $('#t_os').value, lang: $('#t_lang').value,
+      clickId: $('#t_click').checked, isBot: $('#t_bot').checked, isDatacenter: $('#t_dc').checked,
+    };
+    const r = await api('/cloak/test', { method: 'POST', body });
+    const row = (name, x) => `
+      <div class="item" style="padding:10px 14px">
+        <div class="meta"><div class="title" style="font-size:14px">${esc(name)}</div>
+          <div class="desc">${x.visible ? '<span style="color:#22c55e">✅ Tampil</span>' : '<span style="color:#fb7185">🚫 Tersembunyi</span> — alasan: <b>' + esc(x.reason) + '</b>'}</div>
+        </div>
+      </div>`;
+    const btns = r.buttons.map((b) => row(`Tombol: ${b.label || '(tanpa nama)'} · /${b.page_slug}`, b)).join('') || '<p class="muted">Tidak ada tombol.</p>';
+    const lnks = r.links.map((l) => row(`Short link: /${l.code}`, l)).join('') || '<p class="muted">Tidak ada short link.</p>';
+    $('#testResult').innerHTML = `<h3>Tombol</h3><div class="list">${btns}</div><h3 style="margin-top:16px">Short Link</h3><div class="list">${lnks}</div>`;
+  };
+  $('#runTest').addEventListener('click', () => run().catch((e) => toast(e.message, true)));
+};
+
+// ===========================================================================
 // BACKUP (export / import)
 // ===========================================================================
 views.backup = async () => {

@@ -285,6 +285,32 @@ function pp_api($method, $parts) {
     if ($p0 === $route && $p1 !== '' && $method === 'DELETE') { $st = db()->prepare("DELETE FROM $table WHERE id = ?"); $st->execute([$p1]); json_out(['ok' => true]); }
   }
 
+  // cloaking tester — simulate a visitor and see each item's visibility + reason
+  if ($p0 === 'cloak' && $p1 === 'test' && $method === 'POST') {
+    $b = body_json();
+    $ctx = [
+      'country' => strtoupper(trim($b['country'] ?? 'ID')) ?: 'XX',
+      'referrer' => strtolower(trim($b['referrer'] ?? '')),
+      'device' => in_array($b['device'] ?? '', ['mobile', 'desktop'], true) ? $b['device'] : 'mobile',
+      'os' => in_array($b['os'] ?? '', ['ios', 'android', 'windows', 'mac', 'linux'], true) ? $b['os'] : '',
+      'lang' => strtolower(trim($b['lang'] ?? '')),
+      'clickId' => !empty($b['clickId']),
+      'isBot' => !empty($b['isBot']),
+      'isDatacenter' => !empty($b['isDatacenter']),
+    ];
+    $buttons = [];
+    foreach (db()->query('SELECT b.*, p.slug AS page_slug FROM buttons b JOIN pages p ON p.id=b.page_id ORDER BY b.page_id, b.sort_order, b.id')->fetchAll() as $bt) {
+      $ev = pp_evaluate($bt, $ctx, true);
+      $buttons[] = ['id' => $bt['id'], 'label' => $bt['label'], 'page_slug' => $bt['page_slug'], 'visible' => $ev['visible'], 'reason' => $ev['reason']];
+    }
+    $links = [];
+    foreach (db()->query('SELECT * FROM short_links ORDER BY id')->fetchAll() as $ln) {
+      $ev = pp_evaluate($ln, $ctx, false);
+      $links[] = ['id' => $ln['id'], 'code' => $ln['code'], 'visible' => $ev['visible'], 'reason' => $ev['reason']];
+    }
+    json_out(['ctx' => $ctx, 'buttons' => $buttons, 'links' => $links]);
+  }
+
   // backup
   if ($p0 === 'backup' && $p1 === 'export' && $method === 'GET') {
     $bytes = pp_export_zip();
