@@ -19,6 +19,7 @@ Daftar isi:
 - [D. Pasang di subdomain website yang sudah ada](#d-pasang-di-subdomain-website-yang-sudah-ada)
 - [E. Setup Cloudflare (disarankan)](#e-setup-cloudflare)
 - [F. Update, backup, & troubleshooting](#f-update-backup--troubleshooting)
+- [G. Setup cPanel/WHM + AlmaLinux + Cloudflare (langkah spesifik)](#g-setup-cpanelwhm--almalinux--cloudflare)
 
 ---
 
@@ -226,3 +227,136 @@ curl -I https://bio.websiteku.com/health
 - Ganti `JWT_SECRET` dan password admin sebelum live.
 - Jangan commit file `.env` (sudah masuk `.gitignore`).
 - Gunakan HTTPS (Caddy/Certbot/Cloudflare) — wajib agar cookie login aman.
+
+---
+
+## G. Setup cPanel/WHM + AlmaLinux + Cloudflare
+
+Panduan persis untuk: **VPS AlmaLinux, ada WHM/cPanel, sudah pakai Cloudflare**.
+Karena cPanel sudah memakai port 80/443 (Apache), kita jalankan Node di port lokal
+**3000** lalu Apache mem-proxy ke sana. Contoh domain: `mikirdongkids.vip`.
+
+> Jalankan perintah SSH sebagai **root**. Ganti `USER` dengan username akun cPanel
+> pemilik domain, dan sesuaikan path `/home/USER/...`.
+
+### 1) DNS di Cloudflare
+- Buat **A record**: `mikirdongkids.vip` → `<IP_VPS>`, status **Proxied** (☁️ oranye).
+  (Mau pakai subdomain? buat `bio` → IP, lalu pakai `bio.mikirdongkids.vip`.)
+- **SSL/TLS → Overview**: pilih **Full** (atau **Full (strict)** jika nanti pasang
+  Origin Certificate / AutoSSL).
+
+### 2) Pastikan domain ada di cPanel
+Di WHM, pastikan ada akun cPanel untuk `mikirdongkids.vip` (WHM → *Create a New
+Account*). Docroot-nya biasanya `/home/USER/public_html`.
+
+### 3) Install Node.js 20 + build tools (AlmaLinux pakai dnf)
+```bash
+sudo dnf install -y gcc-c++ make python3 git
+curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+sudo dnf install -y nodejs
+node -v   # v20.x
+```
+
+### 4) Ambil kode (taruh di LUAR public_html agar tidak bisa diakses publik)
+```bash
+mkdir -p /home/USER/apps && cd /home/USER/apps
+git clone <URL_REPO_KAMU> page-page
+cd page-page
+npm install --omit=dev
+cp .env.example .env
+nano .env
+```
+Isi `.env`:
+```env
+PORT=3000
+BASE_URL=https://mikirdongkids.vip
+JWT_SECRET=<hasil-perintah-di-bawah>
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=<password-kuat>
+DATA_DIR=./data
+```
+Buat secret acak:
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+Samakan kepemilikan file ke user cPanel:
+```bash
+chown -R USER:USER /home/USER/apps/page-page
+```
+
+### 5) Jalankan permanen dengan PM2
+```bash
+sudo npm install -g pm2
+cd /home/USER/apps/page-page
+pm2 start server.js --name page-page
+pm2 save
+pm2 startup systemd     # jalankan perintah yang ditampilkan agar auto-start saat boot
+pm2 status              # pastikan "online"
+curl -s http://127.0.0.1:3000/health   # harus {"ok":true}
+```
+
+### 6) ⚠️ Buka izin SELinux (WAJIB di AlmaLinux)
+Tanpa ini, Apache **tidak boleh** menghubungi Node dan proxy akan error 503:
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+### 7) Pastikan mod_proxy aktif (EasyApache 4)
+WHM → **EasyApache 4** → *Customize* → **Apache Modules** → pastikan `mod_proxy` dan
+`mod_proxy_http` ter-centang (biasanya sudah). Provision bila belum.
+
+### 8) Reverse proxy Apache → Node
+
+**Cara cepat (.htaccess)** — buat `/home/USER/public_html/.htaccess`:
+```apache
+RewriteEngine On
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+```
+
+**Cara tahan-rebuild (disarankan, via Include cPanel)** — buat dua file include:
+
+`/etc/apache2/conf.d/userdata/std/2_4/USER/mikirdongkids_vip/proxy.conf`
+dan `/etc/apache2/conf.d/userdata/ssl/2_4/USER/mikirdongkids_vip/proxy.conf`,
+keduanya berisi:
+```apache
+ProxyPreserveHost On
+ProxyPass / http://127.0.0.1:3000/
+ProxyPassReverse / http://127.0.0.1:3000/
+RequestHeader set X-Forwarded-Proto "https"
+```
+Lalu terapkan:
+```bash
+sudo mkdir -p /etc/apache2/conf.d/userdata/std/2_4/USER/mikirdongkids_vip
+sudo mkdir -p /etc/apache2/conf.d/userdata/ssl/2_4/USER/mikirdongkids_vip
+# (buat kedua file proxy.conf di atas)
+sudo /scripts/ensure_vhost_includes --user=USER
+sudo /scripts/restartsrv_httpd
+```
+
+### 9) Sertifikat HTTPS di origin
+Karena Cloudflare mode **Full**, Apache butuh sertifikat:
+- **AutoSSL**: WHM → *Manage AutoSSL* → jalankan untuk akun USER (Let's Encrypt), atau
+- **Cloudflare Origin Certificate** (untuk Full strict): buat di Cloudflare → SSL/TLS →
+  *Origin Server*, lalu pasang di cPanel → *SSL/TLS → Install Certificate*.
+
+### 10) Tes
+```
+https://mikirdongkids.vip/health   ->  {"ok":true}
+https://mikirdongkids.vip/panel    ->  halaman login
+```
+Login pakai kredensial dari `.env`, lalu segera ganti password di **Pengaturan**.
+
+### Catatan cloaking di setup ini
+- Cloudflare (Proxied) mengirim header **`CF-IPCountry`** → deteksi negara akurat
+  (app membacanya lebih dulu). Tidak perlu konfigurasi tambahan.
+- `ProxyPreserveHost On` + header diteruskan Apache → `BASE_URL`, IP asli
+  (`X-Forwarded-For`), dan country terbaca dengan benar untuk cloaking/anti-bot.
+- IP publik 3000 **tidak** perlu dibuka di firewall (CSF) — cukup diakses lokal oleh
+  Apache.
+
+### Update di cPanel/WHM
+```bash
+cd /home/USER/apps/page-page
+git pull && npm install --omit=dev
+pm2 restart page-page
+```
