@@ -186,11 +186,15 @@ views.pages = async () => {
 };
 
 async function pageModal(id) {
-  let p = { slug: '', title: '', description: '', avatar: '', theme: {}, published: 1 };
+  let p = { slug: '', title: '', description: '', avatar: '', theme: {}, pixels: {}, published: 1 };
   if (id) p = await api('/pages/' + id);
   let theme = {};
   try {
     theme = typeof p.theme === 'string' ? JSON.parse(p.theme || '{}') : p.theme || {};
+  } catch (_) {}
+  let pixels = {};
+  try {
+    pixels = typeof p.pixels === 'string' ? JSON.parse(p.pixels || '{}') : p.pixels || {};
   } catch (_) {}
 
   openModal(`
@@ -234,7 +238,19 @@ async function pageModal(id) {
       <label style="margin:8px 0"><input type="checkbox" id="f_glass" ${theme.glass !== false ? 'checked' : ''} style="width:auto"> Efek kaca (glass) pada tombol</label>
       <label style="margin:8px 0"><input type="checkbox" id="f_animate" ${theme.animate !== false ? 'checked' : ''} style="width:auto"> Animasi masuk tombol</label>
     </div>
-    <label><input type="checkbox" id="f_pub" ${p.published ? 'checked' : ''} style="width:auto"> Published (aktif untuk publik)</label>
+    <label>📈 Tracking Pixel (khusus page ini)</label>
+    <div class="grid2">
+      <div><span class="hint">Meta / Facebook Pixel ID</span><input id="f_fb" value="${esc(pixels.fb || '')}" placeholder="123456789012345"></div>
+      <div><span class="hint">TikTok Pixel ID</span><input id="f_tt" value="${esc(pixels.tiktok || '')}" placeholder="Cxxxxxxxxxxxx"></div>
+    </div>
+    <div><span class="hint">Google Analytics (GA4) ID</span><input id="f_ga" value="${esc(pixels.ga || '')}" placeholder="G-XXXXXXX"></div>
+    <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Kode kustom (head & body) — pixel lain</summary>
+      <label>Custom &lt;head&gt;</label><textarea id="f_chead" placeholder="<script>...</script>">${esc(pixels.custom_head || '')}</textarea>
+      <label>Custom &lt;body&gt;</label><textarea id="f_cbody" placeholder="<noscript>...</noscript>">${esc(pixels.custom_body || '')}</textarea>
+    </details>
+    <div class="hint">Pixel global (berlaku ke semua page) diatur di menu Pengaturan.</div>
+
+    <label style="margin-top:12px"><input type="checkbox" id="f_pub" ${p.published ? 'checked' : ''} style="width:auto"> Published (aktif untuk publik)</label>
     <div class="modal-actions">
       <button class="btn ghost" onclick="closeModal()">Batal</button>
       <button class="btn primary" id="savePage">Simpan</button>
@@ -282,6 +298,13 @@ async function pageModal(id) {
         font: $('#f_font').value,
         glass: $('#f_glass').checked,
         animate: $('#f_animate').checked,
+      },
+      pixels: {
+        fb: $('#f_fb').value.trim(),
+        tiktok: $('#f_tt').value.trim(),
+        ga: $('#f_ga').value.trim(),
+        custom_head: $('#f_chead').value,
+        custom_body: $('#f_cbody').value,
       },
     };
     try {
@@ -358,10 +381,13 @@ function renderButtonList(page) {
 }
 
 function buttonEditorHtml(b) {
-  const cloakTag =
-    b.cloak_mode !== 'off'
-      ? `<span class="tag cloak">🌍 ${b.cloak_mode === 'allow' ? 'Hanya' : 'Blokir'}: ${esc(b.cloak_countries || '-')}</span>`
-      : '';
+  const tags = [];
+  if (b.cloak_mode !== 'off')
+    tags.push(`<span class="tag cloak">🌍 ${b.cloak_mode === 'allow' ? 'Hanya' : 'Blokir'}: ${esc(b.cloak_countries || '-')}</span>`);
+  if (b.cloak_bots === 'hide') tags.push('<span class="tag cloak">🤖 anti-bot</span>');
+  if (b.cloak_devices) tags.push(`<span class="tag cloak">📱 ${esc(b.cloak_devices)}</span>`);
+  if (b.cloak_ref_mode && b.cloak_ref_mode !== 'off') tags.push('<span class="tag cloak">🔗 referrer</span>');
+  const cloakTag = tags.join(' ');
   return `
   <div class="btn-editor" draggable="true" data-id="${b.id}">
     <div class="head">
@@ -406,6 +432,33 @@ function buttonEditorHtml(b) {
     </div>
     <div class="hint">Pakai kode negara ISO (2 huruf), pisahkan dengan koma. Contoh: <b>ID, MY, SG</b></div>
 
+    <label>🛡️ Cloaking lanjutan</label>
+    <div class="grid2">
+      <div><span class="hint">Bot / crawler</span>
+        <select data-f="cloak_bots">
+          <option value="off" ${b.cloak_bots !== 'hide' ? 'selected' : ''}>Tampil ke bot</option>
+          <option value="hide" ${b.cloak_bots === 'hide' ? 'selected' : ''}>Sembunyikan dari bot</option>
+        </select>
+      </div>
+      <div><span class="hint">Perangkat</span>
+        <select data-f="cloak_devices">
+          <option value="" ${!b.cloak_devices ? 'selected' : ''}>Semua perangkat</option>
+          <option value="mobile" ${b.cloak_devices === 'mobile' ? 'selected' : ''}>Hanya mobile</option>
+          <option value="desktop" ${b.cloak_devices === 'desktop' ? 'selected' : ''}>Hanya desktop</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid2">
+      <div><span class="hint">Sumber (referrer)</span>
+        <select data-f="cloak_ref_mode">
+          <option value="off" ${b.cloak_ref_mode !== 'allow' && b.cloak_ref_mode !== 'block' ? 'selected' : ''}>Semua sumber</option>
+          <option value="allow" ${b.cloak_ref_mode === 'allow' ? 'selected' : ''}>Hanya dari sumber berikut</option>
+          <option value="block" ${b.cloak_ref_mode === 'block' ? 'selected' : ''}>Blokir sumber berikut</option>
+        </select>
+      </div>
+      <div><span class="hint">Daftar referrer</span><input data-f="cloak_ref_list" value="${esc(b.cloak_ref_list || '')}" placeholder="facebook.com, tiktok.com"></div>
+    </div>
+
     <label>⏰ Jadwal tampil (opsional)</label>
     <div class="grid2">
       <div><span class="hint">Mulai tampil</span><input type="datetime-local" data-f="start_at" value="${esc(b.start_at || '')}"></div>
@@ -444,6 +497,10 @@ function bindButtonEditor(b, pageId) {
       enabled: g('enabled').checked,
       cloak_mode: g('cloak_mode').value,
       cloak_countries: g('cloak_countries').value,
+      cloak_bots: g('cloak_bots').value,
+      cloak_devices: g('cloak_devices').value,
+      cloak_ref_mode: g('cloak_ref_mode').value,
+      cloak_ref_list: g('cloak_ref_list').value,
       start_at: g('start_at').value,
       end_at: g('end_at').value,
     };
@@ -560,7 +617,7 @@ function linkModal(id, links) {
     <input id="l_url" value="${esc(l.target_url)}" placeholder="https://...">
     <label>Judul (opsional, untuk catatanmu)</label>
     <input id="l_title" value="${esc(l.title)}">
-    <label>🌍 Cloaking</label>
+    <label>🌍 Cloaking negara</label>
     <div class="grid2">
       <select id="l_mode">
         <option value="off" ${l.cloak_mode === 'off' ? 'selected' : ''}>Nonaktif</option>
@@ -569,7 +626,27 @@ function linkModal(id, links) {
       </select>
       <input id="l_countries" value="${esc(l.cloak_countries)}" placeholder="ID, US">
     </div>
-    <label>URL pengalihan untuk pengunjung yang diblokir (opsional)</label>
+    <label>🛡️ Cloaking lanjutan</label>
+    <div class="grid2">
+      <select id="l_bots">
+        <option value="off" ${l.cloak_bots !== 'hide' ? 'selected' : ''}>Tampil ke bot</option>
+        <option value="hide" ${l.cloak_bots === 'hide' ? 'selected' : ''}>Sembunyikan dari bot</option>
+      </select>
+      <select id="l_devices">
+        <option value="" ${!l.cloak_devices ? 'selected' : ''}>Semua perangkat</option>
+        <option value="mobile" ${l.cloak_devices === 'mobile' ? 'selected' : ''}>Hanya mobile</option>
+        <option value="desktop" ${l.cloak_devices === 'desktop' ? 'selected' : ''}>Hanya desktop</option>
+      </select>
+    </div>
+    <div class="grid2">
+      <select id="l_refmode">
+        <option value="off" ${l.cloak_ref_mode !== 'allow' && l.cloak_ref_mode !== 'block' ? 'selected' : ''}>Semua sumber</option>
+        <option value="allow" ${l.cloak_ref_mode === 'allow' ? 'selected' : ''}>Hanya dari sumber</option>
+        <option value="block" ${l.cloak_ref_mode === 'block' ? 'selected' : ''}>Blokir sumber</option>
+      </select>
+      <input id="l_reflist" value="${esc(l.cloak_ref_list || '')}" placeholder="facebook.com, tiktok.com">
+    </div>
+    <label>URL "safe page" untuk bot / pengunjung yang diblokir (opsional)</label>
     <input id="l_fallback" value="${esc(l.cloak_fallback || '')}" placeholder="https://...">
     ${id ? `<label><input type="checkbox" id="l_enabled" ${l.enabled ? 'checked' : ''} style="width:auto"> Aktif</label>` : ''}
     <div class="modal-actions">
@@ -583,6 +660,10 @@ function linkModal(id, links) {
       title: $('#l_title').value,
       cloak_mode: $('#l_mode').value,
       cloak_countries: $('#l_countries').value,
+      cloak_bots: $('#l_bots').value,
+      cloak_devices: $('#l_devices').value,
+      cloak_ref_mode: $('#l_refmode').value,
+      cloak_ref_list: $('#l_reflist').value,
       cloak_fallback: $('#l_fallback').value.trim(),
     };
     try {
@@ -660,12 +741,32 @@ views.analytics = async () => {
         ? arr.map((x) => `<div class="mini"><span>${esc(x[label] || x[key])}</span><b>${x.clicks ?? x.views}</b></div>`).join('')
         : '<p class="muted">—</p>';
 
+    const botRows =
+      (a.topBotIps || [])
+        .map(
+          (c) => `<div class="mini"><span>${flag(c.country)} ${esc(c.ip)}</span><b>${c.n}</b></div>`
+        )
+        .join('') || '<p class="muted">Belum ada bot terdeteksi.</p>';
+
+    const recentRows =
+      (a.recentBots || [])
+        .map(
+          (b) => `<div class="bot-hit">
+            <span class="tag cloak">${esc(b.type)}</span>
+            <b>${flag(b.country)} ${esc(b.ip || '-')}</b>
+            <span class="ua">${esc((b.ua || '').slice(0, 80))}</span>
+          </div>`
+        )
+        .join('') || '<p class="muted">—</p>';
+
     $('#aBody').innerHTML = `
       <div class="cards">
         <div class="card stat"><div class="num">${types.page_view || 0}</div><div class="lbl">Page Views</div></div>
         <div class="card stat"><div class="num">${types.button_click || 0}</div><div class="lbl">Klik Tombol</div></div>
         <div class="card stat"><div class="num">${types.short_click || 0}</div><div class="lbl">Klik Short Link</div></div>
         <div class="card stat"><div class="num">${a.blocked || 0}</div><div class="lbl">Diblokir (cloaking)</div></div>
+        <div class="card stat"><div class="num" style="color:#22c55e">${a.humans || 0}</div><div class="lbl">👤 Manusia</div></div>
+        <div class="card stat"><div class="num" style="color:#fb7185">${a.bots || 0}</div><div class="lbl">🤖 Bot</div></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -684,6 +785,11 @@ views.analytics = async () => {
           <div class="card" style="margin-top:12px"><h3>Top Short Links</h3>${topList(a.topLinks, 'code', 'title')}</div>
           <div class="card" style="margin-top:12px"><h3>Top Tombol</h3>${topList(a.topButtons, 'label', 'label')}</div>
         </div>
+      </div>
+
+      <div class="grid2" style="margin-top:16px">
+        <div class="card"><h3>🤖 Top IP Bot</h3>${botRows}</div>
+        <div class="card"><h3>Deteksi bot terbaru</h3><div class="bot-list">${recentRows}</div></div>
       </div>`;
   };
 
@@ -748,16 +854,44 @@ views.backup = async () => {
 // ===========================================================================
 views.settings = async () => {
   const s = await api('/settings');
+  const gp = s.global_pixels || {};
   const v = $('#view');
   v.innerHTML = `
-    <h2>Pengaturan</h2><p class="sub">Konfigurasi situs dan keamanan akun.</p>
-    <div class="card" style="max-width:520px">
+    <h2>Pengaturan</h2><p class="sub">Konfigurasi situs, pixel global, daftar bot, dan keamanan.</p>
+    <div class="card" style="max-width:560px">
       <label>Judul Situs</label>
       <input id="s_title" value="${esc(s.site_title)}">
       <button class="btn primary" id="saveSite" style="margin-top:12px">Simpan</button>
     </div>
-    <div class="card" style="max-width:520px;margin-top:16px">
-      <h3>Ganti Password</h3>
+
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h3>📈 Pixel Global</h3>
+      <p class="muted">Berlaku untuk SEMUA biolink page. Page bisa menambah pixel sendiri.</p>
+      <div class="grid2">
+        <div><span class="hint">Meta / Facebook Pixel ID</span><input id="g_fb" value="${esc(gp.fb || '')}"></div>
+        <div><span class="hint">TikTok Pixel ID</span><input id="g_tt" value="${esc(gp.tiktok || '')}"></div>
+      </div>
+      <div><span class="hint">Google Analytics (GA4) ID</span><input id="g_ga" value="${esc(gp.ga || '')}"></div>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">Kode kustom global (head & body)</summary>
+        <label>Custom &lt;head&gt;</label><textarea id="g_chead">${esc(gp.custom_head || '')}</textarea>
+        <label>Custom &lt;body&gt;</label><textarea id="g_cbody">${esc(gp.custom_body || '')}</textarea>
+      </details>
+      <button class="btn primary" id="savePixels" style="margin-top:12px">Simpan Pixel Global</button>
+    </div>
+
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h3>🤖 Daftar IP Bot</h3>
+      <p class="muted">IP/CIDR di sini dianggap bot oleh sistem cloaking & analytics (selain deteksi user-agent otomatis).</p>
+      <div class="grid2">
+        <input id="bot_cidr" placeholder="1.2.3.4 atau 1.2.3.0/24">
+        <input id="bot_note" placeholder="catatan (mis. Googlebot)">
+      </div>
+      <button class="btn primary sm" id="addBot" style="margin-top:10px">+ Tambah</button>
+      <div class="list" id="botList" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h3>🔒 Ganti Password</h3>
       <label>Password Saat Ini</label><input type="password" id="p_cur">
       <label>Password Baru</label><input type="password" id="p_new">
       <button class="btn primary" id="savePass" style="margin-top:12px">Ubah Password</button>
@@ -767,6 +901,53 @@ views.settings = async () => {
     await api('/settings', { method: 'PUT', body: { site_title: $('#s_title').value } });
     toast('Tersimpan');
   });
+
+  $('#savePixels').addEventListener('click', async () => {
+    await api('/settings', {
+      method: 'PUT',
+      body: {
+        global_pixels: {
+          fb: $('#g_fb').value.trim(),
+          tiktok: $('#g_tt').value.trim(),
+          ga: $('#g_ga').value.trim(),
+          custom_head: $('#g_chead').value,
+          custom_body: $('#g_cbody').value,
+        },
+      },
+    });
+    toast('Pixel global tersimpan');
+  });
+
+  const loadBots = async () => {
+    const bots = await api('/botips');
+    $('#botList').innerHTML =
+      bots
+        .map(
+          (b) => `<div class="item" style="padding:10px 14px">
+            <div class="meta"><div class="title" style="font-size:14px">${esc(b.cidr)}</div>
+            <div class="desc">${esc(b.note || '')}</div></div>
+            <button class="btn sm danger" data-delbot="${b.id}">Hapus</button></div>`
+        )
+        .join('') || '<p class="muted">Daftar kosong.</p>';
+    $$('[data-delbot]').forEach((x) =>
+      x.addEventListener('click', async () => {
+        await api('/botips/' + x.dataset.delbot, { method: 'DELETE' });
+        loadBots();
+      })
+    );
+  };
+  $('#addBot').addEventListener('click', async () => {
+    try {
+      await api('/botips', { method: 'POST', body: { cidr: $('#bot_cidr').value, note: $('#bot_note').value } });
+      $('#bot_cidr').value = $('#bot_note').value = '';
+      toast('IP bot ditambahkan');
+      loadBots();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  });
+  loadBots();
+
   $('#savePass').addEventListener('click', async () => {
     try {
       await api('/settings/password', { method: 'POST', body: { current: $('#p_cur').value, next: $('#p_new').value } });

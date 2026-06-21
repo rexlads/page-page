@@ -71,6 +71,13 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS bot_ips (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      cidr       TEXT UNIQUE NOT NULL,   -- IPv4 address or CIDR range
+      note       TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_buttons_page ON buttons(page_id);
     CREATE INDEX IF NOT EXISTS idx_events_type  ON events(type);
   `);
@@ -93,11 +100,48 @@ function ensureColumn(table, col, ddl) {
   if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
 
+// Seed a starter list of well-known crawler / datacenter ranges. Users can
+// extend or remove these from the panel; the list is only a convenience.
+function seedBots() {
+  if (getSetting('bots_seeded')) return;
+  const defaults = [
+    ['66.249.64.0/19', 'Googlebot'],
+    ['64.233.160.0/19', 'Google'],
+    ['157.55.39.0/24', 'Bingbot'],
+    ['40.77.167.0/24', 'Bingbot'],
+    ['31.13.24.0/21', 'Facebook'],
+    ['69.171.224.0/19', 'Facebook'],
+    ['173.252.64.0/18', 'Facebook'],
+    ['199.16.156.0/22', 'Twitter/X'],
+  ];
+  const ins = db.prepare(`INSERT OR IGNORE INTO bot_ips (cidr, note) VALUES (?, ?)`);
+  db.transaction(() => defaults.forEach(([c, n]) => ins.run(c, n)))();
+  setSetting('bots_seeded', '1');
+}
+
 migrate();
 // --- incremental migrations ---
 ensureColumn('buttons', 'start_at', `start_at TEXT NOT NULL DEFAULT ''`); // schedule visible-from
 ensureColumn('buttons', 'end_at', `end_at TEXT NOT NULL DEFAULT ''`); // schedule visible-until
+
+// Advanced cloaking fields, shared by buttons + short_links.
+for (const t of ['buttons', 'short_links']) {
+  ensureColumn(t, 'cloak_bots', `cloak_bots TEXT NOT NULL DEFAULT 'off'`); // off | hide
+  ensureColumn(t, 'cloak_devices', `cloak_devices TEXT NOT NULL DEFAULT ''`); // '' | mobile | desktop
+  ensureColumn(t, 'cloak_ref_mode', `cloak_ref_mode TEXT NOT NULL DEFAULT 'off'`); // off | allow | block
+  ensureColumn(t, 'cloak_ref_list', `cloak_ref_list TEXT NOT NULL DEFAULT ''`); // CSV of referrer substrings
+}
+
+// Per-page tracking pixels.
+ensureColumn('pages', 'pixels', `pixels TEXT NOT NULL DEFAULT '{}'`);
+
+// Bot-aware analytics.
+ensureColumn('events', 'is_bot', `is_bot INTEGER NOT NULL DEFAULT 0`);
+ensureColumn('events', 'ua', `ua TEXT NOT NULL DEFAULT ''`);
+ensureColumn('events', 'ip', `ip TEXT NOT NULL DEFAULT ''`);
+
 seedAdmin();
+seedBots();
 
 // --- Settings helpers -------------------------------------------------------
 function getSetting(key, fallback = null) {

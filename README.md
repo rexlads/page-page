@@ -15,9 +15,16 @@ Konsepnya mirip Linktree / bio.link / jagalink, tapi sepenuhnya milikmu.
   banyak tombol.
 - **Kustomisasi tombol** — teks, URL, ikon (emoji), warna tombol, warna teks, gaya
   (filled / outline / soft / pill), urutan drag-and-drop, aktif/nonaktif.
-- **🌍 Cloaking per negara** — sembunyikan tombol/link dari negara tertentu
-  (mode *block*) atau hanya tampilkan ke negara tertentu (mode *allow*). Deteksi
-  negara offline via GeoIP + header Cloudflare.
+- **🛡️ Cloaking canggih** — gabungan beberapa aturan sekaligus (logika AND):
+  per **negara** (allow/block), **anti-bot/crawler**, target **perangkat**
+  (mobile/desktop), dan **referrer** (hanya/blokir sumber seperti facebook.com,
+  tiktok.com). Pengunjung yang diblokir bisa dialihkan ke "safe page".
+- **🤖 Deteksi bot + daftar IP bot** — bot dikenali dari user-agent, daftar IP/CIDR
+  yang bisa kamu kelola, dan request tanpa user-agent. Klik bot tidak menambah
+  statistik, dan analytics memisahkan **manusia vs bot**.
+- **📈 Integrasi Pixel / Ads** — Meta (Facebook) Pixel, TikTok Pixel, Google
+  Analytics (GA4), plus kode kustom (head/body) untuk pixel lain. Bisa **global**
+  (semua page) maupun **per-page**. Event PageView + konversi saat tombol diklik.
 - **✂️ Link shortener** — persingkat URL apa pun (`/promo`), dengan kode kustom
   atau acak, statistik klik, dan cloaking juga (plus URL fallback untuk visitor
   yang diblokir).
@@ -107,6 +114,48 @@ Isi kolom negara dengan **kode ISO 2 huruf**, dipisah koma. Contoh: `ID, MY, SG`
 **Cara deteksi negara:** server membaca header `CF-IPCountry` (jika di belakang
 Cloudflare), atau melakukan lookup GeoIP offline dari IP pengunjung. Pastikan
 `trust proxy` aktif (sudah default) agar IP asli terbaca di belakang reverse proxy.
+
+#### 🛡️ Cloaking lanjutan
+
+Selain negara, setiap tombol & short link punya **Cloaking lanjutan**. Semua aturan
+yang aktif harus lolos (AND) agar item ditampilkan:
+
+- **Bot / crawler** — pilih *Sembunyikan dari bot* untuk menyembunyikan dari mesin
+  pencari, scraper, dan **peninjau iklan** (mis. `facebookexternalhit`). Klasik
+  untuk menampilkan "money page" ke manusia dan "safe page" ke bot.
+- **Perangkat** — tampilkan hanya di *mobile* atau *desktop*.
+- **Referrer** — *Hanya dari sumber* (mis. `facebook.com, tiktok.com`) sangat
+  berguna untuk trafik iklan; atau *Blokir sumber* tertentu.
+
+Pada **short link**, isi **"safe page"** (URL fallback) agar bot / pengunjung yang
+diblokir dialihkan ke sana alih-alih melihat 404.
+
+#### 🤖 Deteksi bot & daftar IP bot
+
+Bot dideteksi dari (1) pola **user-agent** (Googlebot, bingbot, facebookexternalhit,
+TikTok, headless browser, curl, dll), (2) **daftar IP/CIDR** yang kamu kelola di
+**Pengaturan → Daftar IP Bot** (sudah diisi range umum Google/Bing/Facebook, bisa
+ditambah/hapus), dan (3) request **tanpa user-agent**.
+
+Klik dari bot **tidak** menambah statistik klik, dan di menu **Analytics** trafik
+dipisah **👤 Manusia vs 🤖 Bot**, lengkap dengan **Top IP Bot** dan log deteksi
+bot terbaru (IP, negara, user-agent).
+
+### 3a. 📈 Integrasi Pixel / Meta Ads / TikTok Ads
+
+Pasang pixel untuk tracking konversi kampanye iklan:
+
+- **Per page**: buka **Setelan** page → bagian *Tracking Pixel* → isi **Meta/Facebook
+  Pixel ID**, **TikTok Pixel ID**, **GA4 ID**, atau kode kustom (head/body).
+- **Global** (berlaku ke semua page): **Pengaturan → Pixel Global**.
+
+Yang otomatis terjadi di halaman publik:
+- `PageView` dikirim saat halaman dibuka (fbq/ttq/gtag).
+- Saat tombol diklik, dikirim event konversi (`Lead` untuk Meta, `ClickButton`
+  untuk TikTok, `select_content` untuk GA4) sebelum diarahkan ke tujuan.
+
+> Pixel per-page menimpa nilai global yang sama; kode kustom global + page digabung.
+> Tip: pakai cloaking *anti-bot* agar pixel/PageView tidak terpicu oleh crawler.
 
 ### 3b. ⏰ Penjadwalan tombol
 

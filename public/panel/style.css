@@ -166,6 +166,12 @@ textarea { resize: vertical; min-height: 70px; }
 .mini:last-child { border-bottom: none; }
 .mini span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* BOT DETECTION LIST */
+.bot-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+.bot-hit { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.bot-hit:last-child { border-bottom: none; }
+.bot-hit .ua { color: var(--muted); font-size: 11px; word-break: break-all; }
+
 @media (max-width: 720px) {
   .editor-layout { grid-template-columns: 1fr; }
   .preview-col { position: static; order: -1; }
