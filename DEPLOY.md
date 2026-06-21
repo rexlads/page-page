@@ -20,6 +20,7 @@ Daftar isi:
 - [E. Setup Cloudflare (disarankan)](#e-setup-cloudflare)
 - [F. Update, backup, & troubleshooting](#f-update-backup--troubleshooting)
 - [G. Setup cPanel/WHM + AlmaLinux + Cloudflare (langkah spesifik)](#g-setup-cpanelwhm--almalinux--cloudflare)
+- [H. Tanpa SSH — cPanel "Setup Node.js App" (paling mudah)](#h-tanpa-ssh--cpanel-setup-nodejs-app)
 
 ---
 
@@ -360,3 +361,82 @@ cd /home/USER/apps/page-page
 git pull && npm install --omit=dev
 pm2 restart page-page
 ```
+
+---
+
+## H. Tanpa SSH — cPanel "Setup Node.js App"
+
+Cara paling mudah: semua lewat panel, **tanpa terminal/SSH**. Memakai fitur cPanel
+**Setup Node.js App** (Application Manager / Passenger). App ini sudah kompatibel —
+Passenger otomatis menangani port, jadi tidak perlu mengubah kode.
+
+> **Cek dulu:** login cPanel → cari ikon **"Setup Node.js App"** (grup *Software*).
+> - Jika ada → lanjut langkah 1.
+> - Jika tidak ada → aktifkan sekali lewat WHM (tetap tanpa command line): **WHM →
+>   EasyApache 4 → Customize → Additional Packages**, centang **`ea-ruby`/Passenger
+>   (mod_passenger)**, lalu **Provision**. Setelah itu ikon akan muncul di cPanel.
+
+### 1) Upload kode lewat File Manager
+1. cPanel → **File Manager** → masuk `/home/USER`.
+2. Buat folder **`page-page`**.
+3. Masuk folder itu → **Upload** → pilih `page-page-deploy.zip`.
+4. Klik kanan zip → **Extract** (pastikan `server.js`, `src/`, `public/` ada langsung
+   di dalam `/home/USER/page-page/`). Hapus zip-nya.
+
+### 2) Buat aplikasi Node
+cPanel → **Setup Node.js App** → **Create Application**:
+- **Node.js version:** pilih versi terbaru (mis. 20.x).
+- **Application mode:** **Production**.
+- **Application root:** `page-page` (folder tadi).
+- **Application URL:** pilih domain **mikirdongkids.vip** dan biarkan path **kosong**
+  (artinya app menempati root domain).
+- **Application startup file:** `server.js`.
+
+Klik **Create**.
+
+### 3) Isi Environment Variables (ganti perlu .env)
+Masih di halaman aplikasi, bagian **Detected configuration / Environment variables**
+→ **Add Variable**, tambahkan:
+
+| Name | Value |
+|---|---|
+| `BASE_URL` | `https://mikirdongkids.vip` |
+| `JWT_SECRET` | string acak panjang (mis. ketik 50+ karakter campuran) |
+| `ADMIN_USERNAME` | `admin` |
+| `ADMIN_PASSWORD` | password kuat pilihanmu |
+
+(`PORT` tidak perlu — Passenger mengaturnya sendiri. `DATA_DIR` default `./data`
+sudah cukup dan datanya persisten di folder aplikasi.)
+
+### 4) Install dependency & jalankan (semua tombol)
+1. Klik **Run NPM Install** — membaca `package.json` dan memasang semua dependency
+   (termasuk `better-sqlite3`; biasanya pakai binari prebuilt, tanpa kompilasi).
+2. Klik **Restart** (atau Start).
+3. Status harus **running/started**.
+
+> Jika **Run NPM Install** gagal pada `better-sqlite3` (butuh build tools), itu satu-
+> satunya kemungkinan perlu SSH sekali: `dnf install -y gcc-c++ make python3` lalu
+> klik Run NPM Install lagi. Di sebagian besar server, prebuilt langsung berhasil.
+
+### 5) HTTPS + Cloudflare
+- Cloudflare: A record `mikirdongkids.vip → IP_VPS` **Proxied** (☁️), SSL/TLS **Full**.
+- cPanel → **SSL/TLS Status** → **Run AutoSSL** untuk domain (atau pasang Cloudflare
+  Origin Certificate untuk Full strict).
+
+### 6) Tes
+- `https://mikirdongkids.vip/health` → `{"ok":true}`
+- `https://mikirdongkids.vip/panel` → login, lalu ganti password di **Pengaturan**.
+
+### Update versi (tanpa SSH)
+1. File Manager → upload `page-page-deploy.zip` versi baru ke `/home/USER/page-page`
+   → **Extract** (timpa). 
+2. Setup Node.js App → **Run NPM Install** → **Restart**.
+
+> Catatan: jangan upload folder `data/` dari mana pun saat update — biarkan data di
+> server. Untuk pindah/backup data, pakai tombol **Export/Import** di panel.
+
+### Kelebihan & kekurangan dibanding cara G (PM2)
+- ✅ Tanpa SSH, auto-restart, auto-reverse-proxy, kelola dari panel.
+- ✅ Tidak perlu setbool SELinux / .htaccess manual (Passenger mengurusnya).
+- ⚠️ Bergantung pada Passenger/Node Selector tersedia di server.
+- ⚠️ Jika native module butuh kompilasi, mungkin perlu sekali install build tools.
