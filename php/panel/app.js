@@ -1,5 +1,9 @@
 'use strict';
 
+// Works whether the app is installed at the domain root OR in a subfolder:
+// derive the app base from the panel's own URL (…/panel/ -> …).
+const APP_BASE = location.pathname.replace(/\/panel(\/.*)?$/, '');
+
 // --- tiny helpers -----------------------------------------------------------
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -14,7 +18,7 @@ async function api(path, { method = 'GET', body, raw } = {}) {
   } else if (raw) {
     opts.body = raw;
   }
-  const res = await fetch('/api' + path, opts);
+  const res = await fetch(APP_BASE + '/api' + path, opts);
   if (res.status === 401) {
     showLogin();
     throw new Error('Sesi berakhir, silakan login lagi');
@@ -69,7 +73,7 @@ function qrModal(url) {
 }
 window.qrModal = qrModal;
 
-let BASE_URL = location.origin;
+let BASE_URL = location.origin + APP_BASE;
 
 // Theme presets mirrored from the server (src/routes/public.js).
 const PRESETS = {
@@ -172,7 +176,7 @@ views.pages = async () => {
         <div class="desc">${BASE_URL}/${esc(p.slug)}</div>
       </div>
       <div class="actions">
-        <a class="btn sm ghost" href="/${esc(p.slug)}" target="_blank">Lihat</a>
+        <a class="btn sm ghost" href="${APP_BASE}/${esc(p.slug)}" target="_blank">Lihat</a>
         <button class="btn sm" data-edit="${p.id}">Edit Tombol</button>
         <button class="btn sm ghost" data-settings="${p.id}">Setelan</button>
         <button class="btn sm ghost" data-qr="${esc(p.slug)}">QR</button>
@@ -360,7 +364,7 @@ async function editButtons(pageId) {
     <div class="editor-layout">
       <div id="btnList" class="editor-col"></div>
       <div class="preview-col">
-        <div class="phone"><iframe id="previewFrame" title="preview" src="/${encodeURIComponent(page.slug)}"></iframe></div>
+        <div class="phone"><iframe id="previewFrame" title="preview" src="${APP_BASE}/${encodeURIComponent(page.slug)}"></iframe></div>
         <button class="btn ghost sm" id="refreshPrev">🔄 Refresh preview</button>
         <div class="hint" style="text-align:center">Preview live halaman publikmu</div>
       </div>
@@ -1098,10 +1102,8 @@ window.closeModal = closeModal;
 // --- boot -------------------------------------------------------------------
 (async () => {
   try {
-    const s = await fetch('/api/settings');
+    const s = await fetch(APP_BASE + '/api/settings');
     if (s.ok) {
-      const data = await s.json();
-      if (data.base_url) BASE_URL = data.base_url;
       showApp();
       navigate('dashboard');
     } else {

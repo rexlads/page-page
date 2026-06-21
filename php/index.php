@@ -9,6 +9,45 @@ if (php_sapi_name() === 'cli-server') {
 }
 
 require __DIR__ . '/lib/util.php';
+
+$path = pp_path();
+$method = pp_method();
+$isApi = ($path === '/api' || strpos($path, '/api/') === 0);
+
+// Surface real errors (instead of a blank 500 / generic toast) as JSON for the
+// panel, and convert fatals from the bootstrap into readable messages too.
+ini_set('display_errors', '0');
+set_exception_handler(function ($e) use ($isApi) {
+  $msg = $e->getMessage();
+  if ($isApi) { json_out(['error' => 'Server error: ' . $msg], 500); }
+  http_response_code(500);
+  exit('Server error: ' . htmlspecialchars($msg, ENT_QUOTES));
+});
+register_shutdown_function(function () use ($isApi) {
+  $err = error_get_last();
+  if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+    if (!headers_sent()) {
+      http_response_code(500);
+      if ($isApi) header('Content-Type: application/json; charset=utf-8');
+    }
+    echo $isApi ? json_encode(['error' => 'Server error: ' . $err['message']]) : ('Server error: ' . $err['message']);
+  }
+});
+
+// Lightweight diagnostics — works even if the database can't open.
+if ($path === '/health') {
+  $dataDir = __DIR__ . '/data';
+  json_out([
+    'ok' => true,
+    'php' => PHP_VERSION,
+    'pdo_sqlite' => extension_loaded('pdo_sqlite'),
+    'sqlite3' => extension_loaded('sqlite3'),
+    'zip' => extension_loaded('zip'),
+    'mbstring' => extension_loaded('mbstring'),
+    'data_writable' => is_dir($dataDir) ? is_writable($dataDir) : is_writable(__DIR__),
+  ]);
+}
+
 require __DIR__ . '/lib/db.php';
 require __DIR__ . '/lib/geo.php';
 require __DIR__ . '/lib/bots.php';
@@ -17,11 +56,6 @@ require __DIR__ . '/lib/auth.php';
 require __DIR__ . '/lib/render.php';
 require __DIR__ . '/lib/backup.php';
 require __DIR__ . '/lib/api.php';
-
-$path = pp_path();
-$method = pp_method();
-
-if ($path === '/health') json_out(['ok' => true]);
 
 if ($path === '/api' || strpos($path, '/api/') === 0) {
   $rest = trim(substr($path, 4), '/');
