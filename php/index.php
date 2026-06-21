@@ -89,11 +89,19 @@ $st = db()->prepare('SELECT * FROM pages WHERE slug = ? AND published = 1'); $st
 $page = $st->fetch();
 if ($page) {
   $bt = db()->prepare('SELECT * FROM buttons WHERE page_id = ? ORDER BY sort_order, id'); $bt->execute([$page['id']]);
-  $visible = array_values(array_filter($bt->fetchAll(), fn($b) => pp_button_visible($b, $ctx)));
-  if (!$ctx['isBot']) db()->prepare('UPDATE pages SET views = views + 1 WHERE id = ?')->execute([$page['id']]);
-  pp_log_event('page_view', $page['id'], $ctx);
+  $all = $bt->fetchAll();
+  // Owner preview: a logged-in admin can preview the page with cloaking bypassed
+  // (shows every enabled button) without affecting stats.
+  $ownerPreview = isset($_GET['preview']) && pp_current_user();
+  if ($ownerPreview) {
+    $visible = array_values(array_filter($all, fn($b) => !empty($b['enabled'])));
+  } else {
+    $visible = array_values(array_filter($all, fn($b) => pp_button_visible($b, $ctx)));
+    if (!$ctx['isBot']) db()->prepare('UPDATE pages SET views = views + 1 WHERE id = ?')->execute([$page['id']]);
+    pp_log_event('page_view', $page['id'], $ctx);
+  }
   header('Cache-Control: no-store');
-  echo pp_render_page($page, $visible); exit;
+  echo pp_render_page($page, $visible, $ownerPreview); exit;
 }
 
 $st = db()->prepare('SELECT * FROM short_links WHERE code = ? AND enabled = 1'); $st->execute([$handle]);

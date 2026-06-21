@@ -364,7 +364,7 @@ async function editButtons(pageId) {
     <div class="editor-layout">
       <div id="btnList" class="editor-col"></div>
       <div class="preview-col">
-        <div class="phone"><iframe id="previewFrame" title="preview" src="${APP_BASE}/${encodeURIComponent(page.slug)}"></iframe></div>
+        <div class="phone"><iframe id="previewFrame" title="preview" src="${APP_BASE}/${encodeURIComponent(page.slug)}?preview=1"></iframe></div>
         <button class="btn ghost sm" id="refreshPrev">🔄 Refresh preview</button>
         <div class="hint" style="text-align:center">Preview live halaman publikmu</div>
       </div>

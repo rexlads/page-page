@@ -66,10 +66,11 @@ function pp_js_challenge($targetUrl) {
     . '<body><div>Mengalihkan…</div><script>(function(){try{var u=atob("' . $enc . '");document.cookie="pp_ck=1;path=/;max-age=3600";setTimeout(function(){location.replace(u)},120)}catch(e){}})();</script></body></html>';
 }
 
-function pp_render_page($page, $buttons) {
+function pp_render_page($page, $buttons, $ownerPreview = false) {
   $theme = json_decode($page['theme'] ?: '{}', true) ?: [];
   $pagePixels = json_decode($page['pixels'] ?: '{}', true) ?: [];
-  $px = pp_effective_pixels($pagePixels);
+  // In owner preview, don't fire tracking pixels (avoids fake conversions/views).
+  $px = $ownerPreview ? ['fb' => '', 'tiktok' => '', 'ga' => '', 'custom_head' => '', 'custom_body' => ''] : pp_effective_pixels($pagePixels);
   $presets = pp_presets(); $fonts = pp_fonts();
   $preset = $presets[$theme['preset'] ?? ''] ?? [];
   $bg = $theme['bg'] ?? ($preset['bg'] ?? $presets['midnight']['bg']);
@@ -110,6 +111,9 @@ function pp_render_page($page, $buttons) {
   $body = $btnHtml ?: '<p class="empty">Belum ada tombol yang tersedia.</p>';
   $pixelHead = pp_pixel_head($px);
   $pixelBody = ($px['custom_body'] ?: '') . pp_pixel_click_script($px);
+  $previewBanner = $ownerPreview
+    ? '<div style="position:fixed;top:0;left:0;right:0;z-index:99;background:#f59e0b;color:#1c1300;font:600 13px system-ui;text-align:center;padding:7px 10px">👁️ Pratinjau pemilik — cloaking diabaikan. Pengunjung asli tetap kena aturan cloaking.</div>'
+    : '';
 
   return <<<HTML
 <!doctype html>
@@ -146,6 +150,7 @@ $pixelHead
 </style>
 </head>
 <body>
+  $previewBanner
   <main class="wrap">
     $avatar
     <h1>$title</h1>
