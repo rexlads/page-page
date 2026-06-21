@@ -263,12 +263,19 @@ function pp_api($method, $parts) {
     $dc = (int)($q("SELECT COUNT(*) n FROM events WHERE is_dc=1 AND created_at >= datetime('now', ?)", [$since])[0]['n'] ?? 0);
     $topBotIps = $q("SELECT ip, country, COUNT(*) n FROM events WHERE is_bot=1 AND ip!='' AND created_at >= datetime('now', ?) GROUP BY ip ORDER BY n DESC LIMIT 12", [$since]);
     $recentBots = $q("SELECT type, ip, country, ua, created_at FROM events WHERE is_bot=1 AND created_at >= datetime('now', ?) ORDER BY id DESC LIMIT 15", [$since]);
+    // Traffic source: accepted (passed cloaking) vs blocked (cloaked away).
+    $bySource = $q("SELECT source,
+        SUM(type IN ('page_view','button_click','short_click')) accepted,
+        SUM(type IN ('page_blocked','short_blocked')) blocked
+      FROM events WHERE created_at >= datetime('now', ?)
+      GROUP BY source ORDER BY (accepted + blocked) DESC LIMIT 20", [$since]);
     json_out([
       'days' => $days, 'byCountry' => $byCountry, 'byType' => $byType, 'daily' => $daily, 'blocked' => $blocked,
       'topPages' => $q('SELECT slug,title,views FROM pages ORDER BY views DESC LIMIT 5'),
       'topLinks' => $q('SELECT code,title,clicks FROM short_links ORDER BY clicks DESC LIMIT 5'),
       'topButtons' => $q('SELECT label,clicks FROM buttons ORDER BY clicks DESC LIMIT 5'),
       'humans' => $humans, 'bots' => $bots, 'datacenter' => $dc, 'topBotIps' => $topBotIps, 'recentBots' => $recentBots,
+      'bySource' => $bySource,
     ]);
   }
 

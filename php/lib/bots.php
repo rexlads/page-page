@@ -61,6 +61,38 @@ function pp_has_click_id() {
   return false;
 }
 
+// Map an ad click-id (if present) to its traffic source. Crucial for TikTok
+// in-app traffic, which often sends no Referer but always carries ttclid.
+function pp_click_source() {
+  if (!empty($_GET['ttclid'])) return 'tiktok';
+  if (!empty($_GET['fbclid'])) return 'facebook';
+  if (!empty($_GET['igshid'])) return 'instagram';
+  foreach (['gclid', 'gbraid', 'wbraid', 'dclid'] as $k) if (!empty($_GET[$k])) return 'google';
+  if (!empty($_GET['msclkid'])) return 'bing';
+  if (!empty($_GET['twclid'])) return 'twitter';
+  if (!empty($_GET['li_fat_id'])) return 'linkedin';
+  if (!empty($_GET['epik'])) return 'pinterest';
+  if (!empty($_GET['sccid'])) return 'snapchat';
+  return '';
+}
+
+// Normalize a referrer URL to a friendly source label.
+function pp_referrer_source($referrer) {
+  $host = parse_url($referrer, PHP_URL_HOST);
+  if (!$host) return '';
+  $host = strtolower(preg_replace('/^www\./', '', $host));
+  if (strpos($host, 'tiktok') !== false) return 'tiktok';
+  if (strpos($host, 'facebook') !== false || $host === 'fb.com' || strpos($host, 'fb.') === 0) return 'facebook';
+  if (strpos($host, 'instagram') !== false) return 'instagram';
+  if (strpos($host, 'youtube') !== false || $host === 'youtu.be') return 'youtube';
+  if (strpos($host, 'google') !== false) return 'google';
+  if (strpos($host, 'bing') !== false) return 'bing';
+  if ($host === 't.co' || strpos($host, 'twitter') !== false || $host === 'x.com') return 'twitter';
+  if (strpos($host, 'whatsapp') !== false || $host === 'wa.me') return 'whatsapp';
+  if (strpos($host, 'telegram') !== false || $host === 't.me') return 'telegram';
+  return $host;
+}
+
 function pp_primary_lang() {
   $al = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
   $first = strtolower(substr(trim(explode(',', $al)[0]), 0, 2));

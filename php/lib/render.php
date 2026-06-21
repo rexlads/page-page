@@ -3,9 +3,9 @@
 
 function pp_log_event($type, $ref_id, $ctx) {
   try {
-    $st = db()->prepare('INSERT INTO events (type, ref_id, country, is_bot, is_dc, ua, ip) VALUES (?,?,?,?,?,?,?)');
+    $st = db()->prepare('INSERT INTO events (type, ref_id, country, is_bot, is_dc, ua, ip, source) VALUES (?,?,?,?,?,?,?,?)');
     $st->execute([$type, $ref_id, $ctx['country'], $ctx['isBot'] ? 1 : 0, $ctx['isDatacenter'] ? 1 : 0,
-                  substr($ctx['ua'], 0, 300), $ctx['ip']]);
+                  substr($ctx['ua'], 0, 300), $ctx['ip'], $ctx['source'] ?? '']);
   } catch (Throwable $e) {}
 }
 

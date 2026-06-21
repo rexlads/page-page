@@ -29,6 +29,10 @@ function pp_context() {
   $country = pp_country();
   // Cloudflare reports Tor exits as country "T1" — treat as datacenter/anonymizer.
   $isDc = pp_ip_in_list($ip, pp_dc_cidrs()) || $country === 'T1';
+  $referrer = strtolower($_SERVER['HTTP_REFERER'] ?? '');
+  $source = pp_referrer_source($referrer);
+  if ($source === '') $source = pp_click_source();
+  if ($source === '') $source = 'direct';
   $ctx = [
     'ua' => $ua,
     'ip' => $ip,
@@ -40,7 +44,8 @@ function pp_context() {
     'os' => pp_os_type($ua),
     'lang' => pp_primary_lang(),
     'clickId' => pp_has_click_id(),
-    'referrer' => strtolower($_SERVER['HTTP_REFERER'] ?? ''),
+    'referrer' => $referrer,
+    'source' => $source,
   ];
   return $ctx;
 }

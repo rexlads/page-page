@@ -121,6 +121,7 @@ function pp_migrate() {
       is_dc INTEGER NOT NULL DEFAULT 0,
       ua TEXT NOT NULL DEFAULT '',
       ip TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -153,6 +154,7 @@ function pp_migrate() {
   }
   pp_ensure_column('short_links', 'cloak_js_challenge', "cloak_js_challenge INTEGER NOT NULL DEFAULT 0");
   pp_ensure_column('events', 'is_dc', "is_dc INTEGER NOT NULL DEFAULT 0");
+  pp_ensure_column('events', 'source', "source TEXT NOT NULL DEFAULT ''");
 }
 
 function pp_seed() {

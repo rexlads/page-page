@@ -97,8 +97,10 @@ if ($page) {
     $visible = array_values(array_filter($all, fn($b) => !empty($b['enabled'])));
   } else {
     $visible = array_values(array_filter($all, fn($b) => pp_button_visible($b, $ctx)));
+    // "Blocked" = visitor landed but every button was cloaked away.
+    $blockedVisit = count($all) > 0 && count($visible) === 0;
     if (!$ctx['isBot']) db()->prepare('UPDATE pages SET views = views + 1 WHERE id = ?')->execute([$page['id']]);
-    pp_log_event('page_view', $page['id'], $ctx);
+    pp_log_event($blockedVisit ? 'page_blocked' : 'page_view', $page['id'], $ctx);
   }
   header('Cache-Control: no-store');
   echo pp_render_page($page, $visible, $ownerPreview); exit;

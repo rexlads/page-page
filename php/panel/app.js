@@ -827,6 +827,20 @@ views.analytics = async () => {
         ? arr.map((x) => `<div class="mini"><span>${esc(x[label] || x[key])}</span><b>${x.clicks ?? x.views}</b></div>`).join('')
         : '<p class="muted">—</p>';
 
+    const srcIcon = (s) => ({ tiktok: '🎵', facebook: '📘', instagram: '📸', google: '🔍', youtube: '▶️', twitter: '🐦', whatsapp: '💬', telegram: '✈️', bing: '🔎', direct: '🔗' }[s] || '🌐');
+    const sourceRows =
+      (a.bySource || [])
+        .map((s) => {
+          const acc = +s.accepted || 0, blk = +s.blocked || 0, tot = acc + blk;
+          const rate = tot ? Math.round((acc / tot) * 100) : 0;
+          return `<div class="bar-row" style="grid-template-columns:120px 1fr 110px">
+            <div class="bar-label">${srcIcon(s.source)} ${esc(s.source || 'direct')}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${rate}%;background:linear-gradient(90deg,#22c55e,#86efac)"></div></div>
+            <div class="bar-val"><span style="color:#22c55e">${acc}</span> / <span style="color:#fb7185">${blk}</span> · ${rate}%</div>
+          </div>`;
+        })
+        .join('') || '<p class="muted">Belum ada data trafik.</p>';
+
     const botRows =
       (a.topBotIps || [])
         .map(
@@ -860,6 +874,12 @@ views.analytics = async () => {
         <h3>Aktivitas harian</h3>
         <div class="legend"><span class="dot v"></span> views <span class="dot c"></span> klik</div>
         <div class="sparkline">${dailyBars}</div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>📊 Sumber Trafik — Lolos vs Diblokir</h3>
+        <div class="legend"><span class="dot" style="background:#22c55e"></span> lolos cloaking <span class="dot" style="background:#fb7185"></span> diblokir · bar = % lolos</div>
+        <div class="bars" style="margin-top:10px">${sourceRows}</div>
       </div>
 
       <div class="grid2" style="margin-top:16px">
