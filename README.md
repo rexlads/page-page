@@ -15,10 +15,10 @@ Konsepnya mirip Linktree / bio.link / jagalink, tapi sepenuhnya milikmu.
   banyak tombol.
 - **Kustomisasi tombol** — teks, URL, ikon (emoji), warna tombol, warna teks, gaya
   (filled / outline / soft / pill), urutan drag-and-drop, aktif/nonaktif.
-- **🛡️ Cloaking canggih** — gabungan beberapa aturan sekaligus (logika AND):
-  per **negara** (allow/block), **anti-bot/crawler**, target **perangkat**
-  (mobile/desktop), dan **referrer** (hanya/blokir sumber seperti facebook.com,
-  tiktok.com). Pengunjung yang diblokir bisa dialihkan ke "safe page".
+- **🛡️ Cloaking canggih** — gabungan banyak aturan sekaligus (logika AND): per
+  **negara**, **anti-bot/crawler**, **anti-VPN/datacenter**, **wajib click-id iklan**
+  (fbclid/ttclid/…), target **perangkat**, **OS**, **bahasa**, dan **referrer**.
+  Plus **JS challenge** untuk short link, dan "safe page" untuk yang diblokir.
 - **🤖 Deteksi bot + daftar IP bot** — bot dikenali dari user-agent, daftar IP/CIDR
   yang bisa kamu kelola, dan request tanpa user-agent. Klik bot tidak menambah
   statistik, dan analytics memisahkan **manusia vs bot**.
@@ -120,15 +120,36 @@ Cloudflare), atau melakukan lookup GeoIP offline dari IP pengunjung. Pastikan
 Selain negara, setiap tombol & short link punya **Cloaking lanjutan**. Semua aturan
 yang aktif harus lolos (AND) agar item ditampilkan:
 
-- **Bot / crawler** — pilih *Sembunyikan dari bot* untuk menyembunyikan dari mesin
-  pencari, scraper, dan **peninjau iklan** (mis. `facebookexternalhit`). Klasik
-  untuk menampilkan "money page" ke manusia dan "safe page" ke bot.
-- **Perangkat** — tampilkan hanya di *mobile* atau *desktop*.
-- **Referrer** — *Hanya dari sumber* (mis. `facebook.com, tiktok.com`) sangat
-  berguna untuk trafik iklan; atau *Blokir sumber* tertentu.
+- **Bot / crawler** — *Sembunyikan dari bot*: menyembunyikan dari mesin pencari,
+  scraper, dan **peninjau iklan** (mis. `facebookexternalhit`). Klasik untuk
+  menampilkan "money page" ke manusia dan "safe page" ke bot.
+- **VPN / Datacenter** — *Sembunyikan dari VPN/datacenter*: memblokir pengunjung
+  dari IP cloud/hosting/VPN (tempat bot & pemeriksa iklan biasa berasal). Daftar
+  CIDR dikelola di **Pengaturan → Daftar IP VPN/Datacenter** (sudah terisi range
+  AWS/GCP/Azure/DO/OVH/Hetzner/Vultr/Tor).
+- **Wajib klik iklan (click-id)** — hanya tampil bila URL punya parameter click-id
+  iklan (`fbclid`, `ttclid`, `gclid`, `msclkid`, dll). Memastikan hanya **klik
+  iklan asli** yang melihat konten — pengunjung manual/langsung tidak.
+- **Perangkat** — hanya *mobile* atau *desktop*.
+- **Sistem operasi** — hanya *iOS / Android / Windows / Mac / Linux*.
+- **Bahasa** — allow/block berdasarkan `Accept-Language` browser (mis. `id, en`).
+- **Referrer** — *Hanya dari sumber* (mis. `facebook.com, tiktok.com`) untuk trafik
+  iklan, atau *Blokir sumber* tertentu.
 
-Pada **short link**, isi **"safe page"** (URL fallback) agar bot / pengunjung yang
-diblokir dialihkan ke sana alih-alih melihat 404.
+Khusus **short link**:
+- **JS challenge** 🧩 — alih-alih langsung redirect, kirim halaman yang hanya
+  meneruskan pengunjung bila browser-nya **menjalankan JavaScript** (URL tujuan
+  di-encode base64, bukan link mentah). Menyaring bot tanpa-JS / headless.
+- **"safe page"** (URL fallback) — bot / pengunjung yang diblokir dialihkan ke sini
+  alih-alih melihat 404.
+
+Semua cek di atas diberlakukan **ulang** pada redirect langsung tombol (`/r/b/:id`)
+sehingga link yang dibagikan/di-cache tidak bisa mem-bypass aturan. Klik dari bot
+tidak menambah statistik. Di **Analytics** ada kartu **🛰️ VPN/Datacenter** selain
+Manusia vs Bot.
+
+> **Kustomisasi deteksi bot**: di **Pengaturan** kamu bisa menambah pola
+> **user-agent** sendiri (UA blocklist) dan **IP/CIDR bot**, selain deteksi bawaan.
 
 #### 🤖 Deteksi bot & daftar IP bot
 

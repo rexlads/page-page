@@ -8,7 +8,7 @@ const Database = require('better-sqlite3');
 const config = require('./config');
 const { db } = require('./db');
 
-const TABLES = ['settings', 'pages', 'buttons', 'short_links', 'events', 'bot_ips'];
+const TABLES = ['settings', 'pages', 'buttons', 'short_links', 'events', 'bot_ips', 'dc_ips'];
 
 // ---------------------------------------------------------------------------
 // EXPORT: produce a single .zip Buffer containing a consistent DB snapshot,

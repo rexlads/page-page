@@ -67,14 +67,19 @@ router.get('/settings', (req, res) => {
     admin_username: getSetting('admin_username', 'admin'),
     base_url: config.BASE_URL,
     global_pixels: globalPixels,
+    ua_blocklist: getSetting('ua_blocklist', ''),
   });
 });
 
 router.put('/settings', (req, res) => {
-  const { site_title, global_pixels } = req.body || {};
+  const { site_title, global_pixels, ua_blocklist } = req.body || {};
   if (typeof site_title === 'string') setSetting('site_title', site_title);
   if (global_pixels && typeof global_pixels === 'object') {
     setSetting('global_pixels', JSON.stringify(global_pixels));
+  }
+  if (typeof ua_blocklist === 'string') {
+    setSetting('ua_blocklist', ua_blocklist);
+    invalidateBotCache();
   }
   res.json({ ok: true });
 });
@@ -102,6 +107,32 @@ router.post('/botips', (req, res) => {
 
 router.delete('/botips/:id', (req, res) => {
   db.prepare(`DELETE FROM bot_ips WHERE id = ?`).run(req.params.id);
+  invalidateBotCache();
+  res.json({ ok: true });
+});
+
+// --- datacenter / VPN IP list (used by the "hide from VPN/datacenter" rule) --
+router.get('/dcips', (req, res) => {
+  res.json(db.prepare(`SELECT * FROM dc_ips ORDER BY created_at DESC`).all());
+});
+
+router.post('/dcips', (req, res) => {
+  const cidr = String((req.body && req.body.cidr) || '').trim();
+  const note = String((req.body && req.body.note) || '').trim();
+  if (!/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(cidr)) {
+    return res.status(400).json({ error: 'Format harus IPv4 atau CIDR, mis. 1.2.3.4 atau 1.2.3.0/24' });
+  }
+  try {
+    const info = db.prepare(`INSERT INTO dc_ips (cidr, note) VALUES (?, ?)`).run(cidr, note);
+    invalidateBotCache();
+    res.json({ id: info.lastInsertRowid });
+  } catch (e) {
+    res.status(409).json({ error: 'IP/CIDR sudah ada di daftar' });
+  }
+});
+
+router.delete('/dcips/:id', (req, res) => {
+  db.prepare(`DELETE FROM dc_ips WHERE id = ?`).run(req.params.id);
   invalidateBotCache();
   res.json({ ok: true });
 });
@@ -235,14 +266,23 @@ function sanitizeButton(body, page_id) {
 function sanitizeCloakExtras(body) {
   return {
     cloak_bots: body.cloak_bots === 'hide' ? 'hide' : 'off',
+    cloak_vpn: body.cloak_vpn === 'hide' ? 'hide' : 'off',
+    cloak_click_id: body.cloak_click_id === 'require' ? 'require' : 'off',
     cloak_devices: ['mobile', 'desktop'].includes(body.cloak_devices) ? body.cloak_devices : '',
+    cloak_os: ['ios', 'android', 'windows', 'mac', 'linux'].includes(body.cloak_os) ? body.cloak_os : '',
     cloak_ref_mode: ['off', 'allow', 'block'].includes(body.cloak_ref_mode) ? body.cloak_ref_mode : 'off',
-    cloak_ref_list: String(body.cloak_ref_list || '')
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-      .join(','),
+    cloak_ref_list: csvLower(body.cloak_ref_list),
+    cloak_lang_mode: ['off', 'allow', 'block'].includes(body.cloak_lang_mode) ? body.cloak_lang_mode : 'off',
+    cloak_lang_list: csvLower(body.cloak_lang_list),
   };
+}
+
+function csvLower(s) {
+  return String(s || '')
+    .split(',')
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean)
+    .join(',');
 }
 
 router.post('/pages/:id/buttons', (req, res) => {
@@ -256,9 +296,11 @@ router.post('/pages/:id/buttons', (req, res) => {
   const info = db
     .prepare(
       `INSERT INTO buttons (page_id, label, url, icon, bg_color, text_color, style, sort_order, enabled,
-         cloak_mode, cloak_countries, start_at, end_at, cloak_bots, cloak_devices, cloak_ref_mode, cloak_ref_list)
+         cloak_mode, cloak_countries, start_at, end_at, cloak_bots, cloak_devices, cloak_ref_mode, cloak_ref_list,
+         cloak_vpn, cloak_click_id, cloak_os, cloak_lang_mode, cloak_lang_list)
        VALUES (@page_id, @label, @url, @icon, @bg_color, @text_color, @style, @sort_order, @enabled,
-         @cloak_mode, @cloak_countries, @start_at, @end_at, @cloak_bots, @cloak_devices, @cloak_ref_mode, @cloak_ref_list)`
+         @cloak_mode, @cloak_countries, @start_at, @end_at, @cloak_bots, @cloak_devices, @cloak_ref_mode, @cloak_ref_list,
+         @cloak_vpn, @cloak_click_id, @cloak_os, @cloak_lang_mode, @cloak_lang_list)`
     )
     .run(b);
   res.json({ id: info.lastInsertRowid });
@@ -274,7 +316,9 @@ router.put('/buttons/:id', (req, res) => {
        label=@label, url=@url, icon=@icon, bg_color=@bg_color, text_color=@text_color,
        style=@style, enabled=@enabled, cloak_mode=@cloak_mode, cloak_countries=@cloak_countries,
        start_at=@start_at, end_at=@end_at,
-       cloak_bots=@cloak_bots, cloak_devices=@cloak_devices, cloak_ref_mode=@cloak_ref_mode, cloak_ref_list=@cloak_ref_list
+       cloak_bots=@cloak_bots, cloak_devices=@cloak_devices, cloak_ref_mode=@cloak_ref_mode, cloak_ref_list=@cloak_ref_list,
+       cloak_vpn=@cloak_vpn, cloak_click_id=@cloak_click_id, cloak_os=@cloak_os,
+       cloak_lang_mode=@cloak_lang_mode, cloak_lang_list=@cloak_lang_list
      WHERE id=@id`
   ).run(b);
   res.json({ ok: true });
@@ -313,17 +357,20 @@ router.post('/links', (req, res) => {
 
   cloak_countries = String(cloak_countries).split(',').map((c) => c.trim().toUpperCase()).filter(Boolean).join(',');
   const ex = sanitizeCloakExtras(req.body || {});
+  const jsChallenge = (req.body && req.body.cloak_js_challenge) ? 1 : 0;
   const info = db
     .prepare(
       `INSERT INTO short_links (code, target_url, title, cloak_mode, cloak_countries, cloak_fallback,
-         cloak_bots, cloak_devices, cloak_ref_mode, cloak_ref_list)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         cloak_bots, cloak_devices, cloak_ref_mode, cloak_ref_list,
+         cloak_vpn, cloak_click_id, cloak_os, cloak_lang_mode, cloak_lang_list, cloak_js_challenge)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       code, target_url, title,
       ['off', 'allow', 'block'].includes(cloak_mode) ? cloak_mode : 'off',
       cloak_countries, cloak_fallback,
-      ex.cloak_bots, ex.cloak_devices, ex.cloak_ref_mode, ex.cloak_ref_list
+      ex.cloak_bots, ex.cloak_devices, ex.cloak_ref_mode, ex.cloak_ref_list,
+      ex.cloak_vpn, ex.cloak_click_id, ex.cloak_os, ex.cloak_lang_mode, ex.cloak_lang_list, jsChallenge
     );
   res.json({ id: info.lastInsertRowid, code, short_url: `${config.BASE_URL}/${code}` });
 });
@@ -341,13 +388,22 @@ router.put('/links/:id', (req, res) => {
       : link.cloak_countries;
   const ex = sanitizeCloakExtras({
     cloak_bots: req.body.cloak_bots ?? link.cloak_bots,
+    cloak_vpn: req.body.cloak_vpn ?? link.cloak_vpn,
+    cloak_click_id: req.body.cloak_click_id ?? link.cloak_click_id,
     cloak_devices: req.body.cloak_devices ?? link.cloak_devices,
+    cloak_os: req.body.cloak_os ?? link.cloak_os,
     cloak_ref_mode: req.body.cloak_ref_mode ?? link.cloak_ref_mode,
     cloak_ref_list: req.body.cloak_ref_list ?? link.cloak_ref_list,
+    cloak_lang_mode: req.body.cloak_lang_mode ?? link.cloak_lang_mode,
+    cloak_lang_list: req.body.cloak_lang_list ?? link.cloak_lang_list,
   });
+  const jsChallenge = req.body.cloak_js_challenge !== undefined
+    ? (req.body.cloak_js_challenge ? 1 : 0)
+    : link.cloak_js_challenge;
   db.prepare(
     `UPDATE short_links SET target_url=?, title=?, enabled=?, cloak_mode=?, cloak_countries=?, cloak_fallback=?,
-       cloak_bots=?, cloak_devices=?, cloak_ref_mode=?, cloak_ref_list=? WHERE id=?`
+       cloak_bots=?, cloak_devices=?, cloak_ref_mode=?, cloak_ref_list=?,
+       cloak_vpn=?, cloak_click_id=?, cloak_os=?, cloak_lang_mode=?, cloak_lang_list=?, cloak_js_challenge=? WHERE id=?`
   ).run(
     target_url ?? link.target_url,
     title ?? link.title,
@@ -356,6 +412,7 @@ router.put('/links/:id', (req, res) => {
     cc,
     cloak_fallback ?? link.cloak_fallback,
     ex.cloak_bots, ex.cloak_devices, ex.cloak_ref_mode, ex.cloak_ref_list,
+    ex.cloak_vpn, ex.cloak_click_id, ex.cloak_os, ex.cloak_lang_mode, ex.cloak_lang_list, jsChallenge,
     link.id
   );
   res.json({ ok: true });
@@ -437,6 +494,10 @@ router.get('/analytics', (req, res) => {
   const humans = (split.find((s) => s.is_bot === 0) || {}).n || 0;
   const botCount = (split.find((s) => s.is_bot === 1) || {}).n || 0;
 
+  const dcCount = db
+    .prepare(`SELECT COUNT(*) AS n FROM events WHERE is_dc = 1 AND created_at >= datetime('now', ?)`)
+    .get(since).n;
+
   const topBotIps = db
     .prepare(
       `SELECT ip, country, COUNT(*) AS n FROM events
@@ -455,7 +516,7 @@ router.get('/analytics', (req, res) => {
 
   res.json({
     days, byCountry, byType, daily, blocked, topPages, topLinks, topButtons,
-    humans, bots: botCount, topBotIps, recentBots,
+    humans, bots: botCount, datacenter: dcCount, topBotIps, recentBots,
   });
 });
 

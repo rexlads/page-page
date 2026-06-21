@@ -78,6 +78,13 @@ function migrate() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS dc_ips (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      cidr       TEXT UNIQUE NOT NULL,   -- datacenter / VPN / hosting IPv4 or CIDR
+      note       TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_buttons_page ON buttons(page_id);
     CREATE INDEX IF NOT EXISTS idx_events_type  ON events(type);
   `);
@@ -119,6 +126,26 @@ function seedBots() {
   setSetting('bots_seeded', '1');
 }
 
+// Seed common cloud / hosting / VPN ranges for datacenter detection. Partial by
+// nature — users can extend the list from the panel.
+function seedDc() {
+  if (getSetting('dc_seeded')) return;
+  const defaults = [
+    ['13.32.0.0/15', 'AWS'], ['52.0.0.0/11', 'AWS'], ['54.144.0.0/12', 'AWS'], ['3.208.0.0/12', 'AWS'],
+    ['34.64.0.0/10', 'Google Cloud'], ['35.184.0.0/13', 'Google Cloud'], ['104.196.0.0/14', 'Google Cloud'],
+    ['40.74.0.0/15', 'Azure'], ['13.64.0.0/11', 'Azure'], ['20.33.0.0/16', 'Azure'],
+    ['157.230.0.0/16', 'DigitalOcean'], ['159.65.0.0/16', 'DigitalOcean'], ['167.71.0.0/16', 'DigitalOcean'],
+    ['165.227.0.0/16', 'DigitalOcean'], ['134.209.0.0/16', 'DigitalOcean'], ['146.190.0.0/16', 'DigitalOcean'],
+    ['51.38.0.0/16', 'OVH'], ['51.68.0.0/16', 'OVH'], ['178.32.0.0/15', 'OVH'], ['91.121.0.0/16', 'OVH'],
+    ['5.9.0.0/16', 'Hetzner'], ['116.202.0.0/16', 'Hetzner'], ['65.108.0.0/16', 'Hetzner'], ['95.216.0.0/16', 'Hetzner'],
+    ['45.32.0.0/16', 'Vultr'], ['149.28.0.0/16', 'Vultr'], ['66.42.0.0/16', 'Vultr'],
+    ['185.220.100.0/22', 'Tor exit (common)'],
+  ];
+  const ins = db.prepare(`INSERT OR IGNORE INTO dc_ips (cidr, note) VALUES (?, ?)`);
+  db.transaction(() => defaults.forEach(([c, n]) => ins.run(c, n)))();
+  setSetting('dc_seeded', '1');
+}
+
 migrate();
 // --- incremental migrations ---
 ensureColumn('buttons', 'start_at', `start_at TEXT NOT NULL DEFAULT ''`); // schedule visible-from
@@ -130,18 +157,26 @@ for (const t of ['buttons', 'short_links']) {
   ensureColumn(t, 'cloak_devices', `cloak_devices TEXT NOT NULL DEFAULT ''`); // '' | mobile | desktop
   ensureColumn(t, 'cloak_ref_mode', `cloak_ref_mode TEXT NOT NULL DEFAULT 'off'`); // off | allow | block
   ensureColumn(t, 'cloak_ref_list', `cloak_ref_list TEXT NOT NULL DEFAULT ''`); // CSV of referrer substrings
+  ensureColumn(t, 'cloak_vpn', `cloak_vpn TEXT NOT NULL DEFAULT 'off'`); // off | hide (datacenter/VPN)
+  ensureColumn(t, 'cloak_click_id', `cloak_click_id TEXT NOT NULL DEFAULT 'off'`); // off | require
+  ensureColumn(t, 'cloak_os', `cloak_os TEXT NOT NULL DEFAULT ''`); // '' | ios | android | windows | mac | linux
+  ensureColumn(t, 'cloak_lang_mode', `cloak_lang_mode TEXT NOT NULL DEFAULT 'off'`); // off | allow | block
+  ensureColumn(t, 'cloak_lang_list', `cloak_lang_list TEXT NOT NULL DEFAULT ''`); // CSV of 2-letter langs
 }
+ensureColumn('short_links', 'cloak_js_challenge', `cloak_js_challenge INTEGER NOT NULL DEFAULT 0`);
 
 // Per-page tracking pixels.
 ensureColumn('pages', 'pixels', `pixels TEXT NOT NULL DEFAULT '{}'`);
 
 // Bot-aware analytics.
 ensureColumn('events', 'is_bot', `is_bot INTEGER NOT NULL DEFAULT 0`);
+ensureColumn('events', 'is_dc', `is_dc INTEGER NOT NULL DEFAULT 0`);
 ensureColumn('events', 'ua', `ua TEXT NOT NULL DEFAULT ''`);
 ensureColumn('events', 'ip', `ip TEXT NOT NULL DEFAULT ''`);
 
 seedAdmin();
 seedBots();
+seedDc();
 
 // --- Settings helpers -------------------------------------------------------
 function getSetting(key, fallback = null) {

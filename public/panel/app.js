@@ -385,7 +385,11 @@ function buttonEditorHtml(b) {
   if (b.cloak_mode !== 'off')
     tags.push(`<span class="tag cloak">🌍 ${b.cloak_mode === 'allow' ? 'Hanya' : 'Blokir'}: ${esc(b.cloak_countries || '-')}</span>`);
   if (b.cloak_bots === 'hide') tags.push('<span class="tag cloak">🤖 anti-bot</span>');
+  if (b.cloak_vpn === 'hide') tags.push('<span class="tag cloak">🛰️ anti-VPN</span>');
+  if (b.cloak_click_id === 'require') tags.push('<span class="tag cloak">🎯 ad-click</span>');
   if (b.cloak_devices) tags.push(`<span class="tag cloak">📱 ${esc(b.cloak_devices)}</span>`);
+  if (b.cloak_os) tags.push(`<span class="tag cloak">💻 ${esc(b.cloak_os)}</span>`);
+  if (b.cloak_lang_mode && b.cloak_lang_mode !== 'off') tags.push('<span class="tag cloak">🈯 lang</span>');
   if (b.cloak_ref_mode && b.cloak_ref_mode !== 'off') tags.push('<span class="tag cloak">🔗 referrer</span>');
   const cloakTag = tags.join(' ');
   return `
@@ -458,6 +462,38 @@ function buttonEditorHtml(b) {
       </div>
       <div><span class="hint">Daftar referrer</span><input data-f="cloak_ref_list" value="${esc(b.cloak_ref_list || '')}" placeholder="facebook.com, tiktok.com"></div>
     </div>
+    <div class="grid2">
+      <div><span class="hint">VPN / Datacenter</span>
+        <select data-f="cloak_vpn">
+          <option value="off" ${b.cloak_vpn !== 'hide' ? 'selected' : ''}>Izinkan semua</option>
+          <option value="hide" ${b.cloak_vpn === 'hide' ? 'selected' : ''}>Sembunyikan dari VPN/datacenter</option>
+        </select>
+      </div>
+      <div><span class="hint">Wajib klik iklan (fbclid/ttclid/…)</span>
+        <select data-f="cloak_click_id">
+          <option value="off" ${b.cloak_click_id !== 'require' ? 'selected' : ''}>Tidak wajib</option>
+          <option value="require" ${b.cloak_click_id === 'require' ? 'selected' : ''}>Hanya jika ada click-id iklan</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid2">
+      <div><span class="hint">Sistem operasi</span>
+        <select data-f="cloak_os">
+          <option value="" ${!b.cloak_os ? 'selected' : ''}>Semua OS</option>
+          ${['ios', 'android', 'windows', 'mac', 'linux'].map((o) => `<option value="${o}" ${b.cloak_os === o ? 'selected' : ''}>Hanya ${o}</option>`).join('')}
+        </select>
+      </div>
+      <div><span class="hint">Bahasa (allow/block)</span>
+        <div class="color-row">
+          <select data-f="cloak_lang_mode" style="max-width:42%">
+            <option value="off" ${b.cloak_lang_mode !== 'allow' && b.cloak_lang_mode !== 'block' ? 'selected' : ''}>Off</option>
+            <option value="allow" ${b.cloak_lang_mode === 'allow' ? 'selected' : ''}>Hanya</option>
+            <option value="block" ${b.cloak_lang_mode === 'block' ? 'selected' : ''}>Blokir</option>
+          </select>
+          <input data-f="cloak_lang_list" value="${esc(b.cloak_lang_list || '')}" placeholder="id, en">
+        </div>
+      </div>
+    </div>
 
     <label>⏰ Jadwal tampil (opsional)</label>
     <div class="grid2">
@@ -501,6 +537,11 @@ function bindButtonEditor(b, pageId) {
       cloak_devices: g('cloak_devices').value,
       cloak_ref_mode: g('cloak_ref_mode').value,
       cloak_ref_list: g('cloak_ref_list').value,
+      cloak_vpn: g('cloak_vpn').value,
+      cloak_click_id: g('cloak_click_id').value,
+      cloak_os: g('cloak_os').value,
+      cloak_lang_mode: g('cloak_lang_mode').value,
+      cloak_lang_list: g('cloak_lang_list').value,
       start_at: g('start_at').value,
       end_at: g('end_at').value,
     };
@@ -646,6 +687,31 @@ function linkModal(id, links) {
       </select>
       <input id="l_reflist" value="${esc(l.cloak_ref_list || '')}" placeholder="facebook.com, tiktok.com">
     </div>
+    <div class="grid2">
+      <select id="l_vpn">
+        <option value="off" ${l.cloak_vpn !== 'hide' ? 'selected' : ''}>Izinkan VPN/datacenter</option>
+        <option value="hide" ${l.cloak_vpn === 'hide' ? 'selected' : ''}>Blokir VPN/datacenter</option>
+      </select>
+      <select id="l_clickid">
+        <option value="off" ${l.cloak_click_id !== 'require' ? 'selected' : ''}>Click-id tidak wajib</option>
+        <option value="require" ${l.cloak_click_id === 'require' ? 'selected' : ''}>Wajib click-id iklan</option>
+      </select>
+    </div>
+    <div class="grid2">
+      <select id="l_os">
+        <option value="" ${!l.cloak_os ? 'selected' : ''}>Semua OS</option>
+        ${['ios', 'android', 'windows', 'mac', 'linux'].map((o) => `<option value="${o}" ${l.cloak_os === o ? 'selected' : ''}>Hanya ${o}</option>`).join('')}
+      </select>
+      <div class="color-row">
+        <select id="l_langmode" style="max-width:42%">
+          <option value="off" ${l.cloak_lang_mode !== 'allow' && l.cloak_lang_mode !== 'block' ? 'selected' : ''}>Lang off</option>
+          <option value="allow" ${l.cloak_lang_mode === 'allow' ? 'selected' : ''}>Hanya</option>
+          <option value="block" ${l.cloak_lang_mode === 'block' ? 'selected' : ''}>Blokir</option>
+        </select>
+        <input id="l_langlist" value="${esc(l.cloak_lang_list || '')}" placeholder="id, en">
+      </div>
+    </div>
+    <label style="margin-top:8px"><input type="checkbox" id="l_jschal" ${l.cloak_js_challenge ? 'checked' : ''} style="width:auto"> 🧩 JS challenge (saring bot tanpa JavaScript)</label>
     <label>URL "safe page" untuk bot / pengunjung yang diblokir (opsional)</label>
     <input id="l_fallback" value="${esc(l.cloak_fallback || '')}" placeholder="https://...">
     ${id ? `<label><input type="checkbox" id="l_enabled" ${l.enabled ? 'checked' : ''} style="width:auto"> Aktif</label>` : ''}
@@ -664,6 +730,12 @@ function linkModal(id, links) {
       cloak_devices: $('#l_devices').value,
       cloak_ref_mode: $('#l_refmode').value,
       cloak_ref_list: $('#l_reflist').value,
+      cloak_vpn: $('#l_vpn').value,
+      cloak_click_id: $('#l_clickid').value,
+      cloak_os: $('#l_os').value,
+      cloak_lang_mode: $('#l_langmode').value,
+      cloak_lang_list: $('#l_langlist').value,
+      cloak_js_challenge: $('#l_jschal').checked,
       cloak_fallback: $('#l_fallback').value.trim(),
     };
     try {
@@ -767,6 +839,7 @@ views.analytics = async () => {
         <div class="card stat"><div class="num">${a.blocked || 0}</div><div class="lbl">Diblokir (cloaking)</div></div>
         <div class="card stat"><div class="num" style="color:#22c55e">${a.humans || 0}</div><div class="lbl">👤 Manusia</div></div>
         <div class="card stat"><div class="num" style="color:#fb7185">${a.bots || 0}</div><div class="lbl">🤖 Bot</div></div>
+        <div class="card stat"><div class="num" style="color:#fbbf24">${a.datacenter || 0}</div><div class="lbl">🛰️ VPN/Datacenter</div></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -882,12 +955,27 @@ views.settings = async () => {
     <div class="card" style="max-width:560px;margin-top:16px">
       <h3>🤖 Daftar IP Bot</h3>
       <p class="muted">IP/CIDR di sini dianggap bot oleh sistem cloaking & analytics (selain deteksi user-agent otomatis).</p>
+      <label>User-Agent blocklist tambahan (pisahkan koma)</label>
+      <input id="ua_block" value="${esc(s.ua_blocklist || '')}" placeholder="mybot, somechecker, scanner">
+      <button class="btn primary sm" id="saveUa" style="margin-top:10px">Simpan UA blocklist</button>
+      <hr style="border-color:var(--border);margin:14px 0">
       <div class="grid2">
         <input id="bot_cidr" placeholder="1.2.3.4 atau 1.2.3.0/24">
         <input id="bot_note" placeholder="catatan (mis. Googlebot)">
       </div>
-      <button class="btn primary sm" id="addBot" style="margin-top:10px">+ Tambah</button>
+      <button class="btn primary sm" id="addBot" style="margin-top:10px">+ Tambah IP Bot</button>
       <div class="list" id="botList" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h3>🛰️ Daftar IP VPN / Datacenter</h3>
+      <p class="muted">IP/CIDR cloud/hosting/VPN. Dipakai aturan cloaking "Sembunyikan dari VPN/datacenter". Sudah terisi range cloud umum.</p>
+      <div class="grid2">
+        <input id="dc_cidr" placeholder="1.2.3.0/24">
+        <input id="dc_note" placeholder="catatan (mis. AWS)">
+      </div>
+      <button class="btn primary sm" id="addDc" style="margin-top:10px">+ Tambah IP Datacenter</button>
+      <div class="list" id="dcList" style="margin-top:12px"></div>
     </div>
 
     <div class="card" style="max-width:560px;margin-top:16px">
@@ -947,6 +1035,41 @@ views.settings = async () => {
     }
   });
   loadBots();
+
+  $('#saveUa').addEventListener('click', async () => {
+    await api('/settings', { method: 'PUT', body: { ua_blocklist: $('#ua_block').value } });
+    toast('UA blocklist tersimpan');
+  });
+
+  const loadDc = async () => {
+    const dc = await api('/dcips');
+    $('#dcList').innerHTML =
+      dc
+        .map(
+          (b) => `<div class="item" style="padding:10px 14px">
+            <div class="meta"><div class="title" style="font-size:14px">${esc(b.cidr)}</div>
+            <div class="desc">${esc(b.note || '')}</div></div>
+            <button class="btn sm danger" data-deldc="${b.id}">Hapus</button></div>`
+        )
+        .join('') || '<p class="muted">Daftar kosong.</p>';
+    $$('[data-deldc]').forEach((x) =>
+      x.addEventListener('click', async () => {
+        await api('/dcips/' + x.dataset.deldc, { method: 'DELETE' });
+        loadDc();
+      })
+    );
+  };
+  $('#addDc').addEventListener('click', async () => {
+    try {
+      await api('/dcips', { method: 'POST', body: { cidr: $('#dc_cidr').value, note: $('#dc_note').value } });
+      $('#dc_cidr').value = $('#dc_note').value = '';
+      toast('IP datacenter ditambahkan');
+      loadDc();
+    } catch (e) {
+      toast(e.message, true);
+    }
+  });
+  loadDc();
 
   $('#savePass').addEventListener('click', async () => {
     try {

@@ -37,9 +37,25 @@ function esc(s = '') {
 function logEvent(type, ref_id, ctx) {
   try {
     db.prepare(
-      `INSERT INTO events (type, ref_id, country, is_bot, ua, ip) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(type, ref_id, ctx.country, ctx.isBot ? 1 : 0, String(ctx.ua || '').slice(0, 300), ctx.ip || '');
+      `INSERT INTO events (type, ref_id, country, is_bot, is_dc, ua, ip) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      type, ref_id, ctx.country,
+      ctx.isBot ? 1 : 0, ctx.isDatacenter ? 1 : 0,
+      String(ctx.ua || '').slice(0, 300), ctx.ip || ''
+    );
   } catch (_) {}
+}
+
+// Interstitial that only forwards visitors whose browser executes JS. The
+// destination is base64-encoded so it isn't a plain link in the HTML source.
+function jsChallenge(targetUrl) {
+  const enc = Buffer.from(targetUrl, 'utf8').toString('base64');
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
+<title>Redirecting…</title><style>body{font-family:system-ui;background:#0b1120;color:#cbd5e1;display:flex;
+min-height:100vh;align-items:center;justify-content:center;margin:0}</style></head>
+<body><div>Mengalihkan…</div>
+<script>(function(){try{var u=atob("${enc}");document.cookie="pp_ck=1;path=/;max-age=3600";setTimeout(function(){location.replace(u)},120)}catch(e){}})();</script>
+</body></html>`;
 }
 
 // --- tracking pixels --------------------------------------------------------
@@ -244,6 +260,11 @@ router.get('/:handle', (req, res, next) => {
     }
     if (!ctx.isBot) db.prepare(`UPDATE short_links SET clicks = clicks + 1 WHERE id = ?`).run(link.id);
     logEvent('short_click', link.id, ctx);
+    // Optional JS challenge: filters out non-JS / headless bots before the redirect.
+    if (link.cloak_js_challenge) {
+      res.set('Cache-Control', 'no-store');
+      return res.send(jsChallenge(link.target_url));
+    }
     return res.redirect(302, link.target_url);
   }
 
