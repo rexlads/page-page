@@ -21,6 +21,7 @@ Daftar isi:
 - [F. Update, backup, & troubleshooting](#f-update-backup--troubleshooting)
 - [G. Setup cPanel/WHM + AlmaLinux + Cloudflare (langkah spesifik)](#g-setup-cpanelwhm--almalinux--cloudflare)
 - [H. Tanpa SSH — cPanel "Setup Node.js App" (paling mudah)](#h-tanpa-ssh--cpanel-setup-nodejs-app)
+- [I. Tanpa npm/Node sama sekali — versi PHP (paling kompatibel)](#i-tanpa-npmnode--versi-php)
 
 ---
 
@@ -440,3 +441,34 @@ sudah cukup dan datanya persisten di folder aplikasi.)
 - ✅ Tidak perlu setbool SELinux / .htaccess manual (Passenger mengurusnya).
 - ⚠️ Bergantung pada Passenger/Node Selector tersedia di server.
 - ⚠️ Jika native module butuh kompilasi, mungkin perlu sekali install build tools.
+
+---
+
+## I. Tanpa npm/Node — versi PHP
+
+Kalau VPS/hosting-mu **tidak bisa menjalankan npm/Node**, pakai **versi PHP** di
+folder [`php/`](php/). PHP murni + SQLite bawaan — **tanpa npm, Node, atau Composer**.
+Fitur identik (termasuk cloaking canggih & pixel), database/format `.zip` kompatibel
+dengan versi Node.
+
+### Pasang (tanpa SSH)
+1. cPanel → **File Manager** → masuk **`public_html`** (docroot `mikirdongkids.vip`).
+2. **Upload** `page-page-php.zip` → klik kanan → **Extract** hingga `index.php` ada
+   langsung di dalam `public_html/`.
+3. Buka **https://mikirdongkids.vip/panel/** → login **admin / admin123** → ganti
+   password di **Pengaturan**.
+
+Tidak ada konfigurasi wajib: `BASE_URL` otomatis dari domain, `JWT_SECRET` dibuat
+acak saat pertama jalan. Data di `data/` (otomatis, terlindungi `.htaccess`), upload
+di `uploads/`.
+
+### Syarat (semua standar di cPanel)
+- **PHP 7.4+** dengan ekstensi **`pdo_sqlite`** + **`zip`**. Aktifkan di cPanel →
+  *Select PHP Version → Extensions*.
+- **mod_rewrite** aktif (default).
+
+### Cloaking
+Cloudflare mengirim `CF-IPCountry` → deteksi negara akurat otomatis; IP asli dari
+`CF-Connecting-IP`. Tidak perlu SELinux, PM2, atau reverse proxy.
+
+> Pindah Node ⇄ PHP: cukup **Export** di satu sisi, **Import** di sisi lain.

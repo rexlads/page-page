@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>page-page · Panel</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="login hidden">
+  <form class="login-card" id="loginForm">
+    <h1>page-page</h1>
+    <p class="muted">Masuk ke panel admin</p>
+    <input id="loginUser" placeholder="Username" autocomplete="username" required>
+    <input id="loginPass" type="password" placeholder="Password" autocomplete="current-password" required>
+    <button class="btn primary" type="submit">Masuk</button>
+    <div id="loginError" class="error"></div>
+  </form>
+</div>
+
+<!-- APP -->
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand">page-page</div>
+    <nav>
+      <a data-view="dashboard" class="active">📊 Dashboard</a>
+      <a data-view="pages">🔗 Biolink Pages</a>
+      <a data-view="links">✂️ Link Shortener</a>
+      <a data-view="analytics">🌍 Analytics</a>
+      <a data-view="backup">💾 Export / Import</a>
+      <a data-view="settings">⚙️ Pengaturan</a>
+    </nav>
+    <button id="logoutBtn" class="btn ghost logout">Keluar</button>
+  </aside>
+
+  <main class="content">
+    <div id="view" class="view"></div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div id="modal" class="modal hidden">
+  <div class="modal-card" id="modalCard"></div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+# Serve existing files/dirs directly (panel assets, uploads); route the rest to index.php.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Block direct access to the database folder.
+  RewriteRule ^data/ - [F,L]
+
+  # If the requested path is a real file or directory, serve it as-is.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Everything else -> front controller.
+  RewriteRule ^ index.php [L]
+</IfModule>
+
+# Hardening: never serve the SQLite database or WAL files even if rewrite is off.
+<FilesMatch "\.(db|db-wal|db-shm|sqlite)$">
+  Require all denied
+</FilesMatch>
+
+Options -Indexes
